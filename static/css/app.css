@@ -175,6 +175,14 @@ select:focus, .input:focus { outline: none; border-color: var(--brand); }
   color: var(--muted); font-weight: 600; font-size: .9rem; text-decoration: none;
   padding: .9rem; margin-top: .2rem; }
 .config-link .icon { width: 18px; height: 18px; }
+.icon-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: .4rem;
+  max-height: 190px; overflow-y: auto; padding: .5rem; background: var(--bg-1);
+  border: 1.5px solid var(--line); border-radius: 12px; }
+.icon-pick { display: grid; place-items: center; aspect-ratio: 1; background: var(--surface-2);
+  border: 1.5px solid transparent; border-radius: 10px; color: var(--muted); cursor: pointer; }
+.icon-pick.sel { border-color: var(--brand); color: var(--text);
+  background: color-mix(in srgb, var(--brand) 20%, var(--surface-2)); }
+.icon-pick .icon { width: 20px; height: 20px; }
 
 .flash { display: flex; align-items: center; gap: .5rem; padding: .7rem .9rem; border-radius: 14px;
   font-size: .88rem; font-weight: 600; margin-bottom: .9rem;
