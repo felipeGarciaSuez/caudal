@@ -5,6 +5,10 @@ from .base import env
 
 DEBUG = False
 
+# No insecure fallback in prod: fail loudly if SECRET_KEY isn't set. A default
+# key would make session cookies forgeable.
+SECRET_KEY = env("SECRET_KEY")
+
 ALLOWED_HOSTS = env("ALLOWED_HOSTS")
 
 # Postgres is mandatory in prod — fail loudly if DATABASE_URL is missing.

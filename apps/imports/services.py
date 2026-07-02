@@ -15,6 +15,11 @@ from apps.transactions.models import Transaction
 from .models import CategoryRule, ImportBatch
 from .parsers import NormalizedRow, ParseError, parse_csv
 
+# Hard ceiling on rows per import. A single request must never turn into tens of
+# thousands of INSERTs: on the free tier that ties up the only worker (effective
+# DoS) and bloats the DB. Real monthly exports are well under this.
+MAX_IMPORT_ROWS = 2000
+
 
 @dataclass
 class ImportResult:
@@ -89,6 +94,11 @@ def run_import(*, owner, wallet, source: str, file) -> ImportResult:
     # USD card charges are valued with the manual dollar price (fase 4).
     usd_rate = current_dollar_price(owner) if is_card else None
     rows = parse_csv(file_bytes, source=source, usd_rate=usd_rate)  # may raise ParseError
+    if len(rows) > MAX_IMPORT_ROWS:
+        raise ParseError(
+            f"El archivo tiene demasiados movimientos ({len(rows)}). "
+            f"El máximo por importación es {MAX_IMPORT_ROWS}. Dividilo en partes más chicas."
+        )
     if is_card:
         for row in rows:
             row.date = _shift_one_month(row.date)
@@ -135,6 +145,9 @@ def run_import(*, owner, wallet, source: str, file) -> ImportResult:
                 installments_current=row.installments_current,
                 installments_total=row.installments_total,
                 needs_review=row.needs_review,
+                # bulk_create bypasses Transaction.save(), so set the denormalised
+                # YYYY-MM period here (save() would otherwise derive it from date).
+                period=str(row.date)[:7],
             )
         )
 
@@ -150,8 +163,8 @@ def run_import(*, owner, wallet, source: str, file) -> ImportResult:
         if stored_file is not None:
             batch.file = stored_file
         batch.save()
-        for tx in to_create:
-            tx.save()  # per-row save() keeps period in sync
+        # One bulk INSERT instead of N round-trips; period is set above.
+        Transaction.objects.bulk_create(to_create)
 
     return ImportResult(
         batch=batch,

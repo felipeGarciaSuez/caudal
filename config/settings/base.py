@@ -26,6 +26,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    # Third-party
+    "axes",  # brute-force protection on login
     # Local apps
     "apps.accounts",
     "apps.wallets",
@@ -45,6 +47,15 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # AxesMiddleware must be last so it sees the final auth outcome.
+    "axes.middleware.AxesMiddleware",
+]
+
+# Auth backends: AxesStandaloneBackend first so failed logins are throttled,
+# then Django's default ModelBackend for the actual credential check.
+AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
+    "django.contrib.auth.backends.ModelBackend",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -103,3 +114,18 @@ LOGOUT_REDIRECT_URL = "/accounts/login/"
 
 # App-wide money defaults.
 DEFAULT_CURRENCY = "ARS"
+
+# --- Brute-force protection (django-axes) ------------------------------------
+# Lock out an IP after too many failed logins, then auto-release after a while.
+# Uses the database handler by default, so lockouts hold across gunicorn workers.
+AXES_FAILURE_LIMIT = env.int("AXES_FAILURE_LIMIT", default=5)
+AXES_COOLOFF_TIME = env.int("AXES_COOLOFF_HOURS", default=1)  # hours until auto-release
+AXES_LOCKOUT_PARAMETERS = ["ip_address"]
+AXES_RESET_ON_SUCCESS = True
+# Behind Render's proxy the real client IP is in X-Forwarded-For.
+AXES_IPWARE_PROXY_COUNT = env.int("AXES_PROXY_COUNT", default=0) or None
+AXES_IPWARE_META_PRECEDENCE_ORDER = ["HTTP_X_FORWARDED_FOR", "REMOTE_ADDR"]
+
+# Admin URL is configurable so it can be moved off the well-known /admin/ path
+# in prod (set ADMIN_URL to something hard to guess; keep the trailing slash).
+ADMIN_URL = env("ADMIN_URL", default="admin/")

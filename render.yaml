@@ -10,7 +10,9 @@ services:
       uv run python manage.py migrate &&
       uv run python manage.py ensure_superuser &&
       (uv run python manage.py seed_data || true)
-    startCommand: uv run gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+    # --timeout kills a worker stuck on a slow request (e.g. a heavy import) so
+    # one request can't hang the only worker on the free plan.
+    startCommand: uv run gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --timeout 30
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: config.settings.prod
@@ -20,6 +22,14 @@ services:
         generateValue: true
       - key: DEBUG
         value: "False"
+      # Panel de admin fuera de la ruta /admin/ conocida. Cambialo por lo que
+      # quieras (mantené la barra final).
+      - key: ADMIN_URL
+        value: "panel-privado/"
+      # Detrás del proxy TLS de Render hay 1 proxy delante: necesario para que
+      # django-axes lea la IP real del cliente (X-Forwarded-For) al bloquear.
+      - key: AXES_PROXY_COUNT
+        value: "1"
       # Primer login admin, creado solo en el build (el plan free no tiene shell
       # para correr createsuperuser a mano). Cambiá el usuario o la contraseña
       # generada desde el dashboard de Render cuando quieras.
