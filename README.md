@@ -5,6 +5,7 @@ Gestor de finanzas personales, self-hosted. Sueldo, gastos (con foco en **gastos
 ahorro y patrimonio. Mobile-first, carga de gastos en 2 toques.
 
 Contexto completo del producto y decisiones: ver [`CLAUDE.md`](./CLAUDE.md).
+Historial de versiones: [`CHANGELOG.md`](./CHANGELOG.md).
 
 Licencia [MIT](./LICENSE) — contribuciones bienvenidas.
 
@@ -13,6 +14,12 @@ Licencia [MIT](./LICENSE) — contribuciones bienvenidas.
 - **Nunca agregues coautoría de IA a los commits.** No incluyas trailers como `Co-Authored-By: Claude...`,
   `Claude-Session: ...` ni equivalentes de ninguna otra herramienta de IA, sin excepción.
 - No commitees datos reales/sensibles (extractos bancarios, capturas, `.env`). Usá datos de ejemplo genéricos.
+
+## Versionado
+
+`main` es siempre el desarrollo más reciente. Cada versión lanzada (`1.0.0`, `1.1.0`...) queda
+congelada para siempre en su propia rama + tag + [Release](https://github.com/felipeGarciaSuez/caudal/releases).
+Criterio de versión (SemVer) en [`CLAUDE.md`](./CLAUDE.md#10-versionado-y-ramas).
 
 ## Stack
 

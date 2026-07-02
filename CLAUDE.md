@@ -301,3 +301,32 @@ LANGUAGE_CODE=es-ar
 - **Hormiga a vigilar**: delivery (Rappi/PedidosYa), kiosco, café, transporte/Uber, apps, compras chicas.
 - **Ahorro hoy**: dólar billete (efectivo/colchón) y dólar cripto (USDT en exchange/billetera cripto).
 - **Ahorro a futuro**: cripto volátil (BTC/ETH) y acciones/CEDEARs vía broker.
+
+---
+
+## 10. Versionado y ramas
+
+Modelo tipo "versión de app": **`main` es siempre el desarrollo más reciente** (donde se mergean los PRs).
+Cada versión lanzada queda **congelada para siempre** en su propia rama con el número de versión
+(`1.0.0`, `1.1.0`, `2.0.0`...), más un tag idéntico y un GitHub Release con las notas. Esas ramas de
+versión **nunca se tocan de nuevo** — son una foto fija de cómo era el código en ese momento.
+
+### Cuándo cortar una versión nueva
+
+No hace falta cortar versión en cada PR/commit. Se corta cuando hay un conjunto de cambios mergeados
+a `main` que tiene sentido "publicar" como versión (a criterio de Felipe, o sugerido por Claude Code
+al mergear algo importante). Pasos: rama nueva desde `main` con el número de versión → tag igual →
+GitHub Release con changelog → actualizar `CHANGELOG.md`.
+
+### Criterio de versión (SemVer: MAJOR.MINOR.PATCH)
+
+- **PATCH** (`1.0.x`): arreglo de bug, sin agregar funcionalidad ni cambiar comportamiento esperado.
+- **MINOR** (`1.x.0`): funcionalidad nueva, compatible con lo anterior (la mayoría de las fases/features
+  entran acá — ej. un importador nuevo, un panel nuevo).
+- **MAJOR** (`x.0.0`): cambio que rompe compatibilidad — requiere migración de datos no trivial,
+  rediseño del modelo núcleo, o cambia un flujo existente de forma incompatible con versiones previas.
+
+### Manejo de PRs externos
+
+Al revisar un PR (propio o de un colaborador externo): mergear a `main` primero. El corte de versión
+es una decisión aparte, posterior al merge — no todos los PRs ameritan una versión nueva por sí solos.
