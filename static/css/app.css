@@ -165,6 +165,19 @@ select:focus, .input:focus { outline: none; border-color: var(--brand); }
 .pill { font-size: .64rem; padding: .12rem .5rem; border-radius: 999px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
 .pill.warn { background: color-mix(in srgb, var(--neg) 20%, var(--surface-2)); color: #ffd7dd; }
 
+/* Inline edit/delete controls on movement rows */
+.icon-btn.sm { width: 32px; height: 32px; flex: 0 0 auto; }
+.icon-btn.sm .icon { width: 16px; height: 16px; }
+a.chev { text-decoration: none; display: inline-grid; place-items: center; }
+.tx-row { display: block; }
+.tx-line { display: flex; align-items: center; gap: .6rem; }
+.rank-detail-row { display: block; }
+.rd-line { display: flex; align-items: center; gap: .5rem; }
+.rd-line .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tx-edit-wrap { margin-top: .7rem; }
+.paid-check { display: flex; align-items: center; gap: .5rem; font-size: .85rem; color: var(--muted); margin: .1rem 0 .55rem; }
+.paid-check input { width: auto; }
+
 /* ---------- Buttons / flashes ---------- */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
   background: var(--bg-1); color: var(--text); border: 1.5px solid var(--line);

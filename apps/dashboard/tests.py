@@ -491,3 +491,126 @@ def test_hormiga_rows_carry_individual_movements(client_logged, user, wallet):
     assert "Cafecito de la mañana" in body
     assert "Cafecito de la tarde" in body
     assert "rank-detail" in body
+
+
+# --- editar / eliminar movimientos y single-vs-agrupado en gastos grandes ---
+
+
+def _variable_expense(user, wallet, cat, amount, date, **kw):
+    return Transaction.objects.create(
+        owner=user,
+        wallet=wallet,
+        category=cat,
+        amount=Decimal(amount),
+        kind=Transaction.Kind.EXPENSE,
+        date=date,
+        **kw,
+    )
+
+
+def test_delete_transaction_removes_and_rerenders_month(client_logged, user, wallet):
+    period = timezone.localdate().strftime("%Y-%m")
+    cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
+    tx = _variable_expense(user, wallet, cat, "12000", timezone.localdate())
+    resp = client_logged.post(
+        reverse("dashboard:delete_transaction", args=[tx.id]),
+        {"scope": "month", "period": period},
+    )
+    assert resp.status_code == 200
+    assert not Transaction.objects.filter(pk=tx.id).exists()
+    assert "Gastos grandes" in resp.content.decode()  # full month body back
+
+
+def test_cannot_delete_other_users_transaction(client_logged, django_user_model):
+    other = django_user_model.objects.create_user(username="otro", password="x")
+    ow = Wallet.objects.create(owner=other, name="X", kind=Wallet.Kind.CASH)
+    tx = Transaction.objects.create(
+        owner=other,
+        wallet=ow,
+        amount=Decimal("500"),
+        kind=Transaction.Kind.EXPENSE,
+        date="2026-06-10",
+    )
+    resp = client_logged.post(reverse("dashboard:delete_transaction", args=[tx.id]))
+    assert resp.status_code == 404
+    assert Transaction.objects.filter(pk=tx.id).exists()
+
+
+def test_edit_transaction_updates_fields(client_logged, user, wallet):
+    period = timezone.localdate().strftime("%Y-%m")
+    cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
+    other = Category.objects.create(owner=user, name="Ocio", kind=Category.Kind.VARIABLE)
+    tx = _variable_expense(user, wallet, cat, "12000", timezone.localdate())
+    resp = client_logged.post(
+        reverse("dashboard:edit_transaction", args=[tx.id]),
+        {
+            "scope": "month",
+            "period": period,
+            "kind": "expense",
+            "date": "2026-06-15",
+            "amount": "18500",
+            "wallet": wallet.id,
+            "category": other.id,
+            "description": "Compra grande",
+            "is_paid": "on",
+        },
+    )
+    assert resp.status_code == 200
+    tx.refresh_from_db()
+    assert tx.amount == Decimal("18500")
+    assert tx.category == other
+    assert tx.description == "Compra grande"
+
+
+def test_edit_transaction_invalid_returns_400(client_logged, user, wallet):
+    cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
+    tx = _variable_expense(user, wallet, cat, "12000", timezone.localdate())
+    resp = client_logged.post(
+        reverse("dashboard:edit_transaction", args=[tx.id]),
+        {
+            "scope": "month",
+            "kind": "expense",
+            "amount": "abc",
+            "wallet": wallet.id,
+            "date": "2026-06-15",
+        },
+    )
+    assert resp.status_code == 400
+    tx.refresh_from_db()
+    assert tx.amount == Decimal("12000")
+
+
+def test_big_row_single_movement_is_editable(client_logged, user, wallet):
+    period = timezone.localdate().strftime("%Y-%m")
+    cat = Category.objects.create(owner=user, name="Seguro", kind=Category.Kind.VARIABLE)
+    tx = _variable_expense(user, wallet, cat, "25000", timezone.localdate())
+    resp = client_logged.get(reverse("dashboard:month", args=[period]))
+    rows = {r["category__name"]: r for r in resp.context["big_rows"]}
+    assert rows["Seguro"]["single"] == tx  # one movement -> surfaced as itself
+    # The delete control for that tx is present in the main view.
+    assert reverse("dashboard:delete_transaction", args=[tx.id]) in resp.content.decode()
+
+
+def test_big_row_aggregates_when_multiple(client_logged, user, wallet):
+    period = timezone.localdate().strftime("%Y-%m")
+    cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
+    _variable_expense(user, wallet, cat, "12000", timezone.localdate())
+    _variable_expense(user, wallet, cat, "8000", timezone.localdate())
+    resp = client_logged.get(reverse("dashboard:month", args=[period]))
+    rows = {r["category__name"]: r for r in resp.context["big_rows"]}
+    assert rows["Super"]["single"] is None  # several movements -> grouped
+    assert rows["Super"]["count"] == 2
+    assert rows["Super"]["total"] == Decimal("20000.00")
+
+
+def test_delete_from_detail_rerenders_detail_body(client_logged, user, wallet):
+    period = timezone.localdate().strftime("%Y-%m")
+    cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
+    tx = _variable_expense(user, wallet, cat, "12000", timezone.localdate())
+    resp = client_logged.post(
+        reverse("dashboard:delete_transaction", args=[tx.id]),
+        {"scope": "detail", "period": period, "category_id": cat.id},
+    )
+    assert resp.status_code == 200
+    assert not Transaction.objects.filter(pk=tx.id).exists()
+    assert "Total Super" in resp.content.decode()  # detail body re-rendered
