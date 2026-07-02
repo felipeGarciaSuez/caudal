@@ -1,7 +1,7 @@
 {% load money icons %}
 
 {% if just_added %}
-  <div class="flash">{% icon "check" "icon" %} Cargado: {{ just_added.description|default:just_added.category.name|default:"gasto" }} · $ {{ just_added.amount|money }}</div>
+  <div class="flash">{% icon "check" "icon" %} Cargado: {{ just_added.description|default:just_added.category|default:"gasto" }} · $ {{ just_added.amount|money }}</div>
 {% endif %}
 {% if form_error %}
   <div class="flash err">No se pudo cargar: {{ form_error }}</div>
@@ -68,7 +68,7 @@
                     hx-target="#month-body" hx-swap="innerHTML"
                     aria-label="{% if tx.is_paid %}Pagado{% else %}Marcar como pagado{% endif %}">{% icon "check" "icon" %}</button>
             <div class="fx-main">
-              <div class="fx-name">{{ tx.description|default:tx.category.name }}</div>
+              <div class="fx-name">{{ tx.description|default:tx.category }}</div>
               <div class="fx-where">{{ tx.wallet.name }}{% if not tx.is_paid %} · <span class="pending-tag">pendiente</span>{% endif %}</div>
             </div>
             <span class="fx-amt">$
@@ -118,7 +118,7 @@
     </div>
   {% endif %}
 
-  <div x-data="{ open: false, amount: '' }"
+  <div x-data="{ open: false, amount: '', desc: '' }"
        style="margin-top:1rem;padding-top:.9rem;border-top:1px dashed var(--line)">
     <button type="button" class="collapse-head" @click="open = !open">
       <span>{% icon "plus" "icon" %} Agregar un gasto grande puntual</span>
@@ -126,7 +126,7 @@
     </button>
     <div x-show="open" x-cloak style="margin-top:.9rem">
       <form hx-post="{% url 'dashboard:add_transaction' %}" hx-target="#month-body" hx-swap="innerHTML"
-            @htmx:after-request="if ($event.detail.successful) amount = ''">
+            @htmx:after-request="if ($event.detail.successful) { amount = ''; desc = '' }">
         <input type="hidden" name="period" value="{{ period }}">
         <input type="hidden" name="kind" value="expense">
         <input type="hidden" name="date" value="{{ default_date|date:'Y-m-d' }}">
@@ -137,7 +137,12 @@
                  inputmode="decimal" step="0.01" min="0" placeholder="0" aria-label="Monto">
         </div>
         <div class="field">
+          <input type="text" name="description" x-model="desc" maxlength="255"
+                 placeholder="Descripción (opcional)" aria-label="Descripción">
+        </div>
+        <div class="field">
           <select name="category" aria-label="Categoría">
+            <option value="">Sin categoría</option>
             {% for c in big_categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
           </select>
         </div>
@@ -196,7 +201,7 @@
             <ul x-show="open" x-cloak class="rank-detail">
               {% for tx in row.movements %}
                 <li class="rank-detail-row">
-                  <span class="name">{{ tx.description|default:tx.category.name }}</span>
+                  <span class="name">{{ tx.description|default:tx.category }}</span>
                   <span class="sub">{{ tx.date|date:"d/m" }} · {{ tx.wallet.name }}</span>
                   <span class="amt tnum">$ {{ tx.own_amount|money:0 }}</span>
                 </li>
@@ -217,7 +222,7 @@
 
 {# ---------- CARGA MANUAL (secundaria, colapsable) ---------- #}
 <div class="card" id="add-card"
-     x-data="{ open: window.location.hash === '#add-card', amount: '' }"
+     x-data="{ open: window.location.hash === '#add-card', amount: '', desc: '' }"
      @open-add.window="open = true; $el.scrollIntoView({ behavior: 'smooth' })">
   <button type="button" class="collapse-head" @click="open = !open">
     <span>{% icon "plus" "icon" %} Agregar un gasto suelto</span>
@@ -225,7 +230,7 @@
   </button>
   <div x-show="open" x-cloak style="margin-top:.9rem">
     <form hx-post="{% url 'dashboard:add_transaction' %}" hx-target="#month-body" hx-swap="innerHTML"
-          @htmx:after-request="if ($event.detail.successful) amount = ''">
+          @htmx:after-request="if ($event.detail.successful) { amount = ''; desc = '' }">
       <input type="hidden" name="period" value="{{ period }}">
       <input type="hidden" name="kind" value="expense">
       <input type="hidden" name="date" value="{{ default_date|date:'Y-m-d' }}">
@@ -234,6 +239,10 @@
         <span class="sign">$</span>
         <input class="amount-input" type="number" name="amount" x-model="amount"
                inputmode="decimal" step="0.01" min="0" placeholder="0" aria-label="Monto">
+      </div>
+      <div class="field">
+        <input type="text" name="description" x-model="desc" maxlength="255"
+               placeholder="¿Qué fue? (opcional)" aria-label="Descripción">
       </div>
       <div class="field">
         <select name="wallet" aria-label="Billetera">
@@ -247,6 +256,9 @@
             {% icon c.icon|default:"tag" "icon" %}{{ c.name }}
           </button>
         {% endfor %}
+        <button class="chip k-none" type="submit" name="category" value="" :disabled="!amount">
+          {% icon "tag" "icon" %}Sin categoría
+        </button>
       </div>
       <a class="hint muted" href="{% url 'transactions:categories' %}" style="display:inline-block;margin-top:.6rem">{% icon "tag" "icon" %} Gestionar categorías</a>
     </form>
