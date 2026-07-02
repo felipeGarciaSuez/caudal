@@ -32,8 +32,10 @@
     <span>− gastos <b class="tnum">$ {{ m.total_spent|money:0 }}</b></span>
   </div>
   {% if m.saved < 0 %}
-    {# Compras de dólares ya están dentro de "− gastos" (categoría Ahorro).
-       Esto es solo el crédito de rescates netos (venta de dólares) del mes. #}
+    {% comment %}
+      Compras de dólares ya están dentro de "− gastos" (categoría Ahorro).
+      Esto es solo el crédito de rescates netos (venta de dólares) del mes.
+    {% endcomment %}
     <div class="legend save-legend">
       <span>{% icon "piggy-bank" "icon" %} rescate del mes</span>
       <a href="{% url 'savings:home' %}">+ <b class="tnum pos">$ {{ m.saved_abs|money:0 }}</b></a>
@@ -137,7 +139,7 @@
                  inputmode="decimal" step="0.01" min="0" placeholder="0" aria-label="Monto">
         </div>
         <div class="field">
-          <input type="text" name="description" x-model="desc" maxlength="255"
+          <input class="input" type="text" name="description" x-model="desc" maxlength="255"
                  placeholder="Descripción (opcional)" aria-label="Descripción">
         </div>
         <div class="field">
@@ -241,7 +243,7 @@
                inputmode="decimal" step="0.01" min="0" placeholder="0" aria-label="Monto">
       </div>
       <div class="field">
-        <input type="text" name="description" x-model="desc" maxlength="255"
+        <input class="input" type="text" name="description" x-model="desc" maxlength="255"
                placeholder="¿Qué fue? (opcional)" aria-label="Descripción">
       </div>
       <div class="field">
