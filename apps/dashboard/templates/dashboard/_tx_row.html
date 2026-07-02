@@ -5,7 +5,7 @@
           hx-target="#tx-{{ tx.id }}" hx-swap="outerHTML"
           aria-label="{% if tx.is_paid %}Pagado{% else %}Pendiente{% endif %}">{% icon "check" "icon" %}</button>
   <div class="tx-main">
-    <div class="tx-desc">{{ tx.description|default:tx.category.name|default:"—" }}</div>
+    <div class="tx-desc">{{ tx.description|default:tx.category|default:"—" }}</div>
     <div class="tx-meta">
       <span>{{ tx.date|date:"d/m" }}</span>
       <span>· {{ tx.wallet.name }}</span>

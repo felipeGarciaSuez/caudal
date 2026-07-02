@@ -127,6 +127,28 @@ def test_add_transaction_creates_expense_and_updates_resto(client_logged, user, 
     assert b"987.499,50" in resp.content
 
 
+def test_add_transaction_without_category_keeps_description(client_logged, user, wallet):
+    # "Sin categoría" submits an empty category; the description is what
+    # identifies the loose/ant expense afterwards.
+    resp = client_logged.post(
+        reverse("dashboard:add_transaction"),
+        {
+            "period": "2026-06",
+            "kind": "expense",
+            "date": "2026-06-15",
+            "is_paid": "on",
+            "amount": "800.00",
+            "wallet": wallet.id,
+            "category": "",
+            "description": "Cafe con Juan",
+        },
+    )
+    assert resp.status_code == 200
+    tx = Transaction.objects.get()
+    assert tx.category is None
+    assert tx.description == "Cafe con Juan"
+
+
 def test_add_transaction_invalid_returns_400(client_logged, user, wallet):
     resp = client_logged.post(
         reverse("dashboard:add_transaction"),

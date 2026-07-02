@@ -115,6 +115,7 @@ select:focus, .input:focus { outline: none; border-color: var(--brand); }
 .chip.k-fixed { border-color: color-mix(in srgb, var(--fixed) 45%, var(--line)); }
 .chip.k-variable { border-color: color-mix(in srgb, var(--variable) 45%, var(--line)); }
 .chip.k-ant { border-color: color-mix(in srgb, var(--ant) 45%, var(--line)); }
+.chip.k-none { border-style: dashed; color: var(--muted); }
 
 /* ---------- Category list ---------- */
 .cat-list { list-style: none; margin: 0; padding: 0; }
