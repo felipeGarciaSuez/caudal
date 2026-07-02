@@ -1,17 +1,29 @@
 {% load money icons %}
-<li class="tx-row" id="tx-{{ tx.id }}">
-  <button class="paid-toggle {% if tx.is_paid %}paid{% endif %}"
-          hx-post="{% url 'dashboard:toggle_paid' tx.id %}"
-          hx-target="#tx-{{ tx.id }}" hx-swap="outerHTML"
-          aria-label="{% if tx.is_paid %}Pagado{% else %}Pendiente{% endif %}">{% icon "check" "icon" %}</button>
-  <div class="tx-main">
-    <div class="tx-desc">{{ tx.description|default:tx.category|default:"—" }}</div>
-    <div class="tx-meta">
-      <span>{{ tx.date|date:"d/m" }}</span>
-      <span>· {{ tx.wallet.name }}</span>
-      {% if not tx.is_paid %}<span class="pill warn">pendiente</span>{% endif %}
-      {% if tx.is_shared %}<span class="pill">mi parte $ {{ tx.own_amount|money }}</span>{% endif %}
+<li class="tx-row" id="tx-{{ tx.id }}" x-data="{ edit: false }">
+  <div class="tx-line">
+    <button class="paid-toggle {% if tx.is_paid %}paid{% endif %}"
+            hx-post="{% url 'dashboard:toggle_paid' tx.id %}"
+            hx-vals='{"scope":"detail","period":"{{ period }}","category_id":"{{ category_id|default:0 }}"}'
+            hx-target="#detail-body" hx-swap="innerHTML"
+            aria-label="{% if tx.is_paid %}Pagado{% else %}Pendiente{% endif %}">{% icon "check" "icon" %}</button>
+    <div class="tx-main">
+      <div class="tx-desc">{{ tx.description|default:tx.category|default:"—" }}</div>
+      <div class="tx-meta">
+        <span>{{ tx.date|date:"d/m" }}</span>
+        <span>· {{ tx.wallet.name }}</span>
+        {% if not tx.is_paid %}<span class="pill warn">pendiente</span>{% endif %}
+        {% if tx.is_shared %}<span class="pill">mi parte $ {{ tx.own_amount|money }}</span>{% endif %}
+      </div>
     </div>
+    <span class="tx-amount tnum">$ {{ tx.amount|money }}</span>
+    <button type="button" class="icon-btn sm" @click="edit = !edit" aria-label="Editar">{% icon "pencil" "icon" %}</button>
+    <button class="icon-btn danger sm"
+            hx-post="{% url 'dashboard:delete_transaction' tx.id %}"
+            hx-vals='{"scope":"detail","period":"{{ period }}","category_id":"{{ category_id|default:0 }}"}'
+            hx-target="#detail-body" hx-swap="innerHTML"
+            hx-confirm="¿Borrar este movimiento?" aria-label="Borrar">{% icon "trash-2" "icon" %}</button>
   </div>
-  <span class="tx-amount tnum">$ {{ tx.amount|money }}</span>
+  <div x-show="edit" x-cloak class="tx-edit-wrap">
+    {% include "dashboard/_tx_edit_form.html" with scope="detail" edit_target="#detail-body" %}
+  </div>
 </li>

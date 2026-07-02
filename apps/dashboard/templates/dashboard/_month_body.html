@@ -97,17 +97,38 @@
   {% if big_rows %}
     <ul class="cat-list" {% if fixed_rows %}style="margin-top:1rem;padding-top:.9rem;border-top:1px dashed var(--line)"{% endif %}>
       {% for row in big_rows %}
-        <li class="cat-item k-{{ row.category__kind|default:'none' }}">
-          <a class="ic" href="{% url 'dashboard:category_detail' period row.category|default:0 %}">
-            {% icon row.category__icon|default:"tag" "icon" %}
-          </a>
-          <a class="body" href="{% url 'dashboard:category_detail' period row.category|default:0 %}" style="color:inherit">
-            <div class="name">{{ row.category__name|default:"Sin categoría" }}</div>
-            <div class="sub">{{ row.count }} movimiento{{ row.count|pluralize }}</div>
-          </a>
-          <span class="amt tnum">$ {{ row.total|money }}</span>
-          <span class="chev">{% icon "chevron-right" "icon" %}</span>
-        </li>
+        {% if row.single %}
+          {# Un solo movimiento: se muestra suelto, con tick, flecha al detalle y tacho. #}
+          <li class="cat-item k-{{ row.category__kind|default:'none' }}">
+            <button class="paid-toggle {% if row.single.is_paid %}paid{% endif %}"
+                    hx-post="{% url 'dashboard:toggle_paid' row.single.id %}"
+                    hx-vals='{"scope":"month","period":"{{ period }}"}'
+                    hx-target="#month-body" hx-swap="innerHTML"
+                    aria-label="{% if row.single.is_paid %}Pagado{% else %}Marcar como pagado{% endif %}">{% icon "check" "icon" %}</button>
+            <div class="body">
+              <div class="name">{{ row.single.description|default:row.category__name|default:"Sin categoría" }}</div>
+              <div class="sub">{{ row.single.wallet.name }}{% if not row.single.is_paid %} · <span class="pending-tag">pendiente</span>{% endif %}</div>
+            </div>
+            <span class="amt tnum">$ {{ row.total|money }}</span>
+            <a class="chev" href="{% url 'dashboard:category_detail' period row.category|default:0 %}" aria-label="Ver detalle">{% icon "chevron-right" "icon" %}</a>
+            <button class="icon-btn danger sm"
+                    hx-post="{% url 'dashboard:delete_transaction' row.single.id %}"
+                    hx-vals='{"scope":"month","period":"{{ period }}"}'
+                    hx-target="#month-body" hx-swap="innerHTML"
+                    hx-confirm="¿Borrar este gasto?" aria-label="Borrar">{% icon "trash-2" "icon" %}</button>
+          </li>
+        {% else %}
+          {# Varios movimientos: agrupado por categoría. Icono decorativo, flecha al detalle. #}
+          <li class="cat-item k-{{ row.category__kind|default:'none' }}">
+            <span class="ic">{% icon row.category__icon|default:"tag" "icon" %}</span>
+            <div class="body">
+              <div class="name">{{ row.category__name|default:"Sin categoría" }}</div>
+              <div class="sub">{{ row.count }} movimiento{{ row.count|pluralize }}</div>
+            </div>
+            <span class="amt tnum">$ {{ row.total|money }}</span>
+            <a class="chev" href="{% url 'dashboard:category_detail' period row.category|default:0 %}" aria-label="Ver detalle">{% icon "chevron-right" "icon" %}</a>
+          </li>
+        {% endif %}
       {% endfor %}
     </ul>
   {% endif %}
@@ -202,10 +223,21 @@
           {% if row.movements %}
             <ul x-show="open" x-cloak class="rank-detail">
               {% for tx in row.movements %}
-                <li class="rank-detail-row">
-                  <span class="name">{{ tx.description|default:tx.category }}</span>
-                  <span class="sub">{{ tx.date|date:"d/m" }} · {{ tx.wallet.name }}</span>
-                  <span class="amt tnum">$ {{ tx.own_amount|money:0 }}</span>
+                <li class="rank-detail-row" x-data="{ edit: false }">
+                  <div class="rd-line">
+                    <span class="name">{{ tx.description|default:tx.category }}</span>
+                    <span class="sub">{{ tx.date|date:"d/m" }} · {{ tx.wallet.name }}</span>
+                    <span class="amt tnum">$ {{ tx.own_amount|money:0 }}</span>
+                    <button type="button" class="icon-btn sm" @click="edit = !edit" aria-label="Editar">{% icon "pencil" "icon" %}</button>
+                    <button class="icon-btn danger sm"
+                            hx-post="{% url 'dashboard:delete_transaction' tx.id %}"
+                            hx-vals='{"scope":"month","period":"{{ period }}"}'
+                            hx-target="#month-body" hx-swap="innerHTML"
+                            hx-confirm="¿Borrar este gasto?" aria-label="Borrar">{% icon "trash-2" "icon" %}</button>
+                  </div>
+                  <div x-show="edit" x-cloak class="tx-edit-wrap">
+                    {% include "dashboard/_tx_edit_form.html" with scope="month" edit_target="#month-body" category_id=0 edit_categories=quick_categories %}
+                  </div>
                 </li>
               {% endfor %}
             </ul>

@@ -137,15 +137,41 @@ def _month_context(user, period: str) -> dict:
     )
 
     # Everything else that isn't hormiga: imported fixed-kind (e.g. card
-    # subscriptions) and all variable (Súper, etc.), aggregated by category so
-    # a big import shows as one line per category instead of dozens of rows.
-    big_rows = list(
+    # subscriptions) and all variable (Súper, etc.). Grouped by category so a big
+    # import shows as one line instead of dozens of rows -- BUT a category with a
+    # single movement is surfaced as that movement, so it can be ticked/deleted
+    # right here (grouped when several, loose when one).
+    zero = Decimal("0.00")
+    big_txs = (
         expenses.exclude(_CHECKLIST_Q)
         .exclude(category__kind=Category.Kind.ANT)
-        .values("category", "category__name", "category__kind", "category__icon")
-        .annotate(total=Sum(own), count=Count("id"))
-        .order_by("-total")
+        .select_related("wallet", "category")
+        .order_by("-date", "-id")
     )
+    big_groups: dict[int | None, list] = {}
+    big_order: list[int | None] = []
+    for tx in big_txs:
+        big_groups.setdefault(tx.category_id, [])
+        if tx.category_id not in big_order:
+            big_order.append(tx.category_id)
+        big_groups[tx.category_id].append(tx)
+    big_rows = []
+    for key in big_order:
+        txs = big_groups[key]
+        cat = txs[0].category
+        big_rows.append(
+            {
+                "category": key,
+                "category__name": cat.name if cat else None,
+                "category__kind": cat.kind if cat else None,
+                "category__icon": cat.icon if cat else None,
+                "total": sum((t.own_amount for t in txs), zero),
+                "count": len(txs),
+                # The Transaction itself when there's exactly one; None otherwise.
+                "single": txs[0] if len(txs) == 1 else None,
+            }
+        )
+    big_rows.sort(key=lambda r: r["total"], reverse=True)
 
     # Hormiga: small/frequent spend, kept fully separate from "grandes".
     ant_rows = list(
@@ -165,7 +191,6 @@ def _month_context(user, period: str) -> dict:
     for row in ant_rows:
         row["movements"] = ant_movements.get(row["category"], [])
 
-    zero = Decimal("0.00")
     fixed_total = sum((t.own_amount for t in fixed_rows), zero)
     fixed_paid = sum((t.own_amount for t in fixed_rows if t.is_paid), zero)
     fixed_pending = fixed_total - fixed_paid
@@ -278,33 +303,63 @@ def add_transaction(request):
     return render(request, "dashboard/_month_body.html", context)
 
 
-@login_required
-def category_detail(request, period, category_id):
+def _category_detail_context(user, period: str, category_id: int) -> dict:
     if category_id == 0:
         category = None
         rows = Transaction.objects.filter(
-            owner=request.user,
+            owner=user,
             period=period,
             kind=Transaction.Kind.EXPENSE,
             category__isnull=True,
         )
         title = "Sin categoría"
     else:
-        category = get_object_or_404(Category, pk=category_id, owner=request.user)
-        rows = Transaction.objects.filter(owner=request.user, period=period, category=category)
+        category = get_object_or_404(Category, pk=category_id, owner=user)
+        rows = Transaction.objects.filter(owner=user, period=period, category=category)
         title = category.name
-    rows = rows.select_related("wallet", "category")
+    rows = rows.select_related("wallet", "category").order_by("-date", "-id")
     total = rows.aggregate(total=Sum("amount"))["total"] or 0
-    context = {
+    return {
         "category": category,
+        "category_id": category_id,
         "title": title,
         "period": period,
         "period_label": _period_label(period),
         "rows": rows,
         "total": total,
         "nav_active": "month",
+        # For the inline edit form rendered per row.
+        "wallets": Wallet.objects.filter(owner=user, is_active=True),
+        "edit_categories": Category.objects.filter(owner=user, children__isnull=True).order_by(
+            "kind", "name"
+        ),
     }
+
+
+@login_required
+def category_detail(request, period, category_id):
+    context = _category_detail_context(request.user, period, category_id)
     return render(request, "dashboard/category_detail.html", context)
+
+
+def _tx_scope_args(request, tx) -> tuple[str, str, int]:
+    """Read where a tx action came from, to re-render the right surface."""
+    scope = request.POST.get("scope") or "month"
+    period = request.POST.get("period") or tx.period
+    try:
+        category_id = int(request.POST.get("category_id") or 0)
+    except (TypeError, ValueError):
+        category_id = 0
+    return scope, period, category_id
+
+
+def _render_tx_scope(request, period: str, scope: str, category_id: int):
+    """Re-render the month body or the category-detail body after a tx change."""
+    if scope == "detail":
+        context = _category_detail_context(request.user, period, category_id)
+        return render(request, "dashboard/_detail_body.html", context)
+    context = _month_context(request.user, period)
+    return render(request, "dashboard/_month_body.html", context)
 
 
 @login_required
@@ -313,12 +368,31 @@ def toggle_paid(request, tx_id):
     tx = get_object_or_404(Transaction, pk=tx_id, owner=request.user)
     tx.is_paid = not tx.is_paid
     tx.save(update_fields=["is_paid"])
-    # From the month checklist we re-render the whole body so the summary and
-    # RESTO SUELDO update; from the category detail we just swap the row.
-    if request.POST.get("scope") == "month":
-        context = _month_context(request.user, tx.period)
-        return render(request, "dashboard/_month_body.html", context)
-    return render(request, "dashboard/_tx_row.html", {"tx": tx})
+    scope, period, category_id = _tx_scope_args(request, tx)
+    return _render_tx_scope(request, period, scope, category_id)
+
+
+@login_required
+@require_POST
+def edit_transaction(request, tx_id):
+    """Full edit of a single movement (amount, description, category, wallet, date)."""
+    tx = get_object_or_404(Transaction, pk=tx_id, owner=request.user)
+    scope, period, category_id = _tx_scope_args(request, tx)
+    form = QuickTransactionForm(request.POST, instance=tx, owner=request.user)
+    if not form.is_valid():
+        message = "; ".join(f"{field}: {', '.join(errs)}" for field, errs in form.errors.items())
+        return HttpResponseBadRequest(f"No se pudo guardar: {message}")
+    form.save()
+    return _render_tx_scope(request, period, scope, category_id)
+
+
+@login_required
+@require_POST
+def delete_transaction(request, tx_id):
+    tx = get_object_or_404(Transaction, pk=tx_id, owner=request.user)
+    scope, period, category_id = _tx_scope_args(request, tx)
+    tx.delete()
+    return _render_tx_scope(request, period, scope, category_id)
 
 
 @login_required

@@ -1,0 +1,53 @@
+{% load money icons %}
+{# Inline edit form for one movement. Expects: tx, wallets, edit_categories,
+   period, scope, category_id, edit_target (the HTMX target to re-render). #}
+<form class="save-form tx-edit" hx-post="{% url 'dashboard:edit_transaction' tx.id %}"
+      hx-target="{{ edit_target }}" hx-swap="innerHTML"
+      @htmx:after-request="if ($event.detail.successful) edit = false">
+  <input type="hidden" name="scope" value="{{ scope }}">
+  <input type="hidden" name="period" value="{{ period }}">
+  <input type="hidden" name="category_id" value="{{ category_id|default:0 }}">
+  <input type="hidden" name="kind" value="{{ tx.kind }}">
+  <div class="two-col">
+    <div class="field">
+      <label>Monto</label>
+      <input type="number" name="amount" inputmode="decimal" step="0.01" min="0"
+             value="{{ tx.amount|stringformat:'.2f' }}" required aria-label="Monto">
+    </div>
+    <div class="field">
+      <label>Fecha</label>
+      <input type="date" name="date" value="{{ tx.date|date:'Y-m-d' }}" required aria-label="Fecha">
+    </div>
+  </div>
+  <div class="field">
+    <label>Descripción</label>
+    <input class="input" type="text" name="description" maxlength="255"
+           value="{{ tx.description }}" placeholder="Descripción (opcional)" aria-label="Descripción">
+  </div>
+  <div class="two-col">
+    <div class="field">
+      <label>Categoría</label>
+      <select name="category" aria-label="Categoría">
+        <option value="">Sin categoría</option>
+        {% for c in edit_categories %}
+          <option value="{{ c.id }}" {% if c.id == tx.category_id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label>Billetera</label>
+      <select name="wallet" aria-label="Billetera">
+        {% for w in wallets %}
+          <option value="{{ w.id }}" {% if w.id == tx.wallet_id %}selected{% endif %}>{{ w.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <label class="paid-check">
+    <input type="checkbox" name="is_paid" {% if tx.is_paid %}checked{% endif %}> Pagado
+  </label>
+  <div class="two-col">
+    <button type="button" class="btn" @click="edit = false">Cancelar</button>
+    <button type="submit" class="btn btn-primary">Guardar cambios</button>
+  </div>
+</form>

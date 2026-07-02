@@ -9,19 +9,7 @@
     <span class="nav" style="visibility:hidden"></span>
   </div>
 
-  <div class="hero">
-    <div class="k">Total {{ title }}</div>
-    <div class="v pos"><span class="cur">$</span><span class="tnum">{{ total|money }}</span></div>
-    <div class="legend"><span>{{ rows|length }} movimiento{{ rows|length|pluralize }}</span></div>
-  </div>
-
-  <div class="card">
-    {% if rows %}
-      <ul class="tx-list">
-        {% for tx in rows %}{% include "dashboard/_tx_row.html" %}{% endfor %}
-      </ul>
-    {% else %}
-      <div class="empty"><span class="big">{% icon "receipt" "icon-lg" %}</span>No hay movimientos en este rubro para {{ period_label }}.</div>
-    {% endif %}
+  <div id="detail-body">
+    {% include "dashboard/_detail_body.html" %}
   </div>
 {% endblock %}
