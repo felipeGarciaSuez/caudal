@@ -1,0 +1,249 @@
+{% load money icons %}
+
+{% if just_added %}
+  <div class="flash">{% icon "check" "icon" %} Cargado: {{ just_added.description|default:just_added.category.name|default:"gasto" }} · $ {{ just_added.amount|money }}</div>
+{% endif %}
+{% if form_error %}
+  <div class="flash err">No se pudo cargar: {{ form_error }}</div>
+{% endif %}
+{% if review_count %}
+  <a class="flash review-link" href="{% url 'imports:review' %}">
+    {% icon "receipt" "icon" %} {{ review_count }} movimiento{{ review_count|pluralize }} de tarjeta para revisar
+    {% icon "chevron-right" "icon" %}
+  </a>
+{% endif %}
+
+{# ---------- HERO: RESTO SUELDO ---------- #}
+<div class="hero">
+  <div class="k">Resto sueldo</div>
+  <div class="v {% if m.over_budget %}neg{% else %}pos{% endif %}">
+    <span class="cur">$</span><span class="tnum">{{ m.remaining|money }}</span>
+  </div>
+  <div class="progress {% if m.over_budget %}over{% endif %}">
+    <span style="width: {{ m.spent_pct }}%"></span>
+  </div>
+  <div class="legend">
+    <span class="inline-income">Sueldo $
+      <input type="number" name="expected_income" inputmode="decimal" step="0.01"
+             value="{{ budget.expected_income|stringformat:'.2f' }}"
+             hx-post="{% url 'dashboard:set_income' period %}" hx-target="#month-body"
+             hx-swap="innerHTML" hx-trigger="change" aria-label="Sueldo esperado">
+    </span>
+    <span>− gastos <b class="tnum">$ {{ m.total_spent|money:0 }}</b></span>
+  </div>
+  {% if m.saved < 0 %}
+    {# Compras de dólares ya están dentro de "− gastos" (categoría Ahorro).
+       Esto es solo el crédito de rescates netos (venta de dólares) del mes. #}
+    <div class="legend save-legend">
+      <span>{% icon "piggy-bank" "icon" %} rescate del mes</span>
+      <a href="{% url 'savings:home' %}">+ <b class="tnum pos">$ {{ m.saved_abs|money:0 }}</b></a>
+    </div>
+  {% endif %}
+</div>
+
+{# ---------- GASTOS GRANDES (checklist + agregados grandes) ---------- #}
+<div class="card">
+  <div class="section-title">
+    <span>Gastos grandes</span>
+    {% if m.fixed_count %}
+      <span class="badge {% if m.fixed_all_paid %}ok{% endif %}">
+        {% if m.fixed_all_paid %}{% icon "check" "icon" %}{% endif %}{{ m.fixed_paid_count }}/{{ m.fixed_count }} pagados
+      </span>
+    {% endif %}
+  </div>
+
+  {% if fixed_rows %}
+    {% for group in fixed_groups %}
+      {% if fixed_groups|length > 1 %}
+        <div class="fx-group-label">{{ group.name|default:"Otros" }}</div>
+      {% endif %}
+      <ul class="fx-list">
+        {% for tx in group.rows %}
+          <li class="fx-row {% if not tx.is_paid %}pending{% endif %}" id="fx-{{ tx.id }}">
+            <button class="paid-toggle {% if tx.is_paid %}paid{% endif %}"
+                    hx-post="{% url 'dashboard:toggle_paid' tx.id %}" hx-vals='{"scope": "month"}'
+                    hx-target="#month-body" hx-swap="innerHTML"
+                    aria-label="{% if tx.is_paid %}Pagado{% else %}Marcar como pagado{% endif %}">{% icon "check" "icon" %}</button>
+            <div class="fx-main">
+              <div class="fx-name">{{ tx.description|default:tx.category.name }}</div>
+              <div class="fx-where">{{ tx.wallet.name }}{% if not tx.is_paid %} · <span class="pending-tag">pendiente</span>{% endif %}</div>
+            </div>
+            <span class="fx-amt">$
+              <input class="amt-input tnum" type="number" inputmode="decimal" step="0.01" min="0"
+                     name="amount" value="{{ tx.amount|stringformat:'.2f' }}"
+                     hx-post="{% url 'dashboard:update_amount' tx.id %}" hx-target="#month-body"
+                     hx-swap="innerHTML" hx-trigger="change" aria-label="Monto de {{ tx.description }}">
+            </span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endfor %}
+    <div class="fx-summary">
+      {% if m.fixed_all_paid %}
+        <span class="ok">{% icon "check" "icon" %} Pagaste todos los fijos</span>
+        <span class="tnum">$ {{ m.fixed_total|money:0 }}</span>
+      {% else %}
+        <span>Falta pagar <b class="neg tnum">$ {{ m.fixed_pending|money:0 }}</b></span>
+        <span class="muted tnum">pagado $ {{ m.fixed_paid|money:0 }} de $ {{ m.fixed_total|money:0 }}</span>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if big_rows %}
+    <ul class="cat-list" {% if fixed_rows %}style="margin-top:1rem;padding-top:.9rem;border-top:1px dashed var(--line)"{% endif %}>
+      {% for row in big_rows %}
+        <li class="cat-item k-{{ row.category__kind|default:'none' }}">
+          <a class="ic" href="{% url 'dashboard:category_detail' period row.category|default:0 %}">
+            {% icon row.category__icon|default:"tag" "icon" %}
+          </a>
+          <a class="body" href="{% url 'dashboard:category_detail' period row.category|default:0 %}" style="color:inherit">
+            <div class="name">{{ row.category__name|default:"Sin categoría" }}</div>
+            <div class="sub">{{ row.count }} movimiento{{ row.count|pluralize }}</div>
+          </a>
+          <span class="amt tnum">$ {{ row.total|money }}</span>
+          <span class="chev">{% icon "chevron-right" "icon" %}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if not fixed_rows and not big_rows %}
+    <div class="empty">
+      <span class="big">{% icon "receipt" "icon-lg" %}</span>
+      No tenés gastos grandes cargados este mes.<br>
+      <a href="/admin/budgets/recurringexpense/add/">Configurá tus fijos recurrentes →</a>
+    </div>
+  {% endif %}
+
+  <div x-data="{ open: false, amount: '' }"
+       style="margin-top:1rem;padding-top:.9rem;border-top:1px dashed var(--line)">
+    <button type="button" class="collapse-head" @click="open = !open">
+      <span>{% icon "plus" "icon" %} Agregar un gasto grande puntual</span>
+      <span class="chev" :class="{ 'rot': open }">{% icon "chevron-right" "icon" %}</span>
+    </button>
+    <div x-show="open" x-cloak style="margin-top:.9rem">
+      <form hx-post="{% url 'dashboard:add_transaction' %}" hx-target="#month-body" hx-swap="innerHTML"
+            @htmx:after-request="if ($event.detail.successful) amount = ''">
+        <input type="hidden" name="period" value="{{ period }}">
+        <input type="hidden" name="kind" value="expense">
+        <input type="hidden" name="date" value="{{ default_date|date:'Y-m-d' }}">
+        <input type="hidden" name="is_paid" value="on">
+        <div class="amount-wrap">
+          <span class="sign">$</span>
+          <input class="amount-input" type="number" name="amount" x-model="amount"
+                 inputmode="decimal" step="0.01" min="0" placeholder="0" aria-label="Monto">
+        </div>
+        <div class="field">
+          <select name="category" aria-label="Categoría">
+            {% for c in big_categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <select name="wallet" aria-label="Billetera">
+            {% for w in wallets %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <button class="btn btn-primary" type="submit" :disabled="!amount" style="margin-top:.5rem;width:100%">Guardar</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ---------- PANEL HORMIGA (a dónde se va la plata chica) ---------- #}
+<div class="card">
+  <div class="section-title">
+    <span>Gastos hormiga</span>
+    {% if m.ant_alert %}
+      <span class="badge warn">{% icon "trending-up" "icon" %} más que el mes pasado</span>
+    {% endif %}
+  </div>
+  <div class="ant-heads">
+    <div class="ant-head">
+      <div class="k">Total del mes</div>
+      <div class="ant-num neg tnum">$ {{ m.ant|money:0 }}</div>
+    </div>
+  </div>
+  {% if m.ant_prev %}
+    <div class="ant-compare">
+      <span class="muted">Mes pasado $ {{ m.ant_prev|money:0 }}</span>
+      {% if m.ant_vs_prev is not None %}
+        <span class="delta {% if m.ant_vs_prev > 0 %}neg{% else %}pos{% endif %}">
+          {% if m.ant_vs_prev > 0 %}+{% endif %}{{ m.ant_vs_prev }}%
+        </span>
+      {% endif %}
+    </div>
+  {% endif %}
+  {% if ant_rows %}
+    <ul class="rank-list">
+      {% for row in ant_rows %}
+        <li class="rank-item" x-data="{ open: false }">
+          <button type="button" class="rank-row" @click="open = !open"
+                  aria-expanded="false" :aria-expanded="open">
+            <span class="ic">{% icon row.category__icon|default:"tag" "icon" %}</span>
+            <div class="rank-main">
+              <div class="rank-head">
+                <span>{{ row.category__name|default:"Sin categoría" }}</span>
+                <span class="tnum">$ {{ row.total|money:0 }}</span>
+              </div>
+              <div class="rank-bar"><span style="width: {% widthratio row.total m.ant 100 %}%"></span></div>
+            </div>
+            <span class="chev" :class="{ rot: open }">{% icon "chevron-right" "icon" %}</span>
+          </button>
+          {% if row.movements %}
+            <ul x-show="open" x-cloak class="rank-detail">
+              {% for tx in row.movements %}
+                <li class="rank-detail-row">
+                  <span class="name">{{ tx.description|default:tx.category.name }}</span>
+                  <span class="sub">{{ tx.date|date:"d/m" }} · {{ tx.wallet.name }}</span>
+                  <span class="amt tnum">$ {{ tx.own_amount|money:0 }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="empty">
+      <span class="big">{% icon "coffee" "icon-lg" %}</span>
+      Sin gastos hormiga este mes.<br>
+      Se cargan solos cuando importás MP o el banco.
+    </div>
+  {% endif %}
+</div>
+
+{# ---------- CARGA MANUAL (secundaria, colapsable) ---------- #}
+<div class="card" id="add-card"
+     x-data="{ open: window.location.hash === '#add-card', amount: '' }"
+     @open-add.window="open = true; $el.scrollIntoView({ behavior: 'smooth' })">
+  <button type="button" class="collapse-head" @click="open = !open">
+    <span>{% icon "plus" "icon" %} Agregar un gasto suelto</span>
+    <span class="chev" :class="{ 'rot': open }">{% icon "chevron-right" "icon" %}</span>
+  </button>
+  <div x-show="open" x-cloak style="margin-top:.9rem">
+    <form hx-post="{% url 'dashboard:add_transaction' %}" hx-target="#month-body" hx-swap="innerHTML"
+          @htmx:after-request="if ($event.detail.successful) amount = ''">
+      <input type="hidden" name="period" value="{{ period }}">
+      <input type="hidden" name="kind" value="expense">
+      <input type="hidden" name="date" value="{{ default_date|date:'Y-m-d' }}">
+      <input type="hidden" name="is_paid" value="on">
+      <div class="amount-wrap">
+        <span class="sign">$</span>
+        <input class="amount-input" type="number" name="amount" x-model="amount"
+               inputmode="decimal" step="0.01" min="0" placeholder="0" aria-label="Monto">
+      </div>
+      <div class="field">
+        <select name="wallet" aria-label="Billetera">
+          {% for w in wallets %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="chips" style="margin-top:.7rem">
+        {% for c in quick_categories %}
+          <button class="chip k-{{ c.kind }}" type="submit" name="category" value="{{ c.id }}" :disabled="!amount">
+            {% icon c.icon|default:"tag" "icon" %}{{ c.name }}
+          </button>
+        {% endfor %}
+      </div>
+    </form>
+  </div>
+</div>

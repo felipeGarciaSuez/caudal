@@ -1,0 +1,16 @@
+{% load icons %}
+<nav class="tabbar">
+  <a href="{% url 'dashboard:home' %}" class="{% if nav_active == 'month' %}active{% endif %}">
+    {% icon "calendar-days" "icon" %}<span>Mes</span>
+  </a>
+  <a href="{% url 'savings:home' %}" class="{% if nav_active == 'savings' %}active{% endif %}">
+    {% icon "piggy-bank" "icon" %}<span>Ahorro</span>
+  </a>
+  <a href="{{ add_href|default:'#add-card' }}" class="add" aria-label="Agregar gasto"
+     onclick="window.dispatchEvent(new CustomEvent('open-add'))">
+    {% icon "plus" "icon" %}
+  </a>
+  <a href="{% url 'imports:import' %}" class="{% if nav_active == 'import' %}active{% endif %}">
+    {% icon "download" "icon" %}<span>Importar</span>
+  </a>
+</nav>

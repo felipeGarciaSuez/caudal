@@ -1,0 +1,164 @@
+"""Import orchestration: parse -> dedupe -> categorize -> persist."""
+
+from __future__ import annotations
+
+import calendar
+import hashlib
+from dataclasses import dataclass
+from datetime import date
+
+from django.db import transaction as db_transaction
+
+from apps.savings.services import current_dollar_price
+from apps.transactions.models import Transaction
+
+from .models import CategoryRule, ImportBatch
+from .parsers import NormalizedRow, ParseError, parse_csv
+
+
+@dataclass
+class ImportResult:
+    batch: ImportBatch
+    rows_total: int
+    rows_imported: int
+    rows_skipped: int
+
+
+def _shift_one_month(d: date) -> date:
+    """Same day next month, clamped to month length.
+
+    A credit-card statement bills what you spent last month: a charge dated in
+    June only hits your wallet (and your budget) when you pay the July
+    statement. So card rows land one period ahead of their purchase date.
+    """
+    year, month = d.year, d.month + 1
+    if month > 12:
+        month = 1
+        year += 1
+    last_day = calendar.monthrange(year, month)[1]
+    return d.replace(year=year, month=month, day=min(d.day, last_day))
+
+
+def _dedupe_key(wallet_id: int, row: NormalizedRow) -> str:
+    """Stable external_id used to catch re-imports.
+
+    Uses the source id when present; otherwise a hash of date+amount+description.
+    """
+    if row.external_id:
+        return row.external_id[:120]
+    raw = f"{wallet_id}|{row.date}|{row.amount}|{row.description}".lower()
+    digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:24]
+    return f"h:{digest}"
+
+
+class _Categorizer:
+    """Applies the owner's keyword rules to a description."""
+
+    def __init__(self, owner):
+        self.rules = list(
+            CategoryRule.objects.filter(owner=owner, is_active=True)
+            .select_related("category")
+            .order_by("priority", "id")
+        )
+
+    def categorize(self, description: str):
+        low = (description or "").lower()
+        for rule in self.rules:
+            if rule.keyword.lower() in low:
+                return rule.category
+        return None
+
+
+def run_import(*, owner, wallet, source: str, file) -> ImportResult:
+    """Parse an uploaded CSV file and persist new transactions for `wallet`.
+
+    `file` may be an uploaded file object (Django UploadedFile) or raw bytes.
+    Duplicates (already-imported rows) are skipped and counted. Raises ParseError
+    if the file structure is unusable.
+    """
+    if hasattr(file, "read"):
+        file_bytes = file.read()
+        if hasattr(file, "seek"):
+            file.seek(0)  # rewind so it can be stored on the batch
+        stored_file = file if getattr(file, "name", None) else None
+    else:
+        file_bytes = file
+        stored_file = None
+
+    is_card = source == ImportBatch.Source.CARD_ICBC
+    # USD card charges are valued with the manual dollar price (fase 4).
+    usd_rate = current_dollar_price(owner) if is_card else None
+    rows = parse_csv(file_bytes, source=source, usd_rate=usd_rate)  # may raise ParseError
+    if is_card:
+        for row in rows:
+            row.date = _shift_one_month(row.date)
+
+    categorizer = _Categorizer(owner)
+
+    # Existing dedupe keys already in this wallet.
+    existing = set(
+        Transaction.objects.filter(wallet=wallet, external_id__isnull=False).values_list(
+            "external_id", flat=True
+        )
+    )
+    seen_in_file: set[str] = set()
+
+    to_create: list[Transaction] = []
+    skipped = 0
+    for row in rows:
+        key = _dedupe_key(wallet.id, row)
+        if key in existing or key in seen_in_file:
+            skipped += 1
+            continue
+        seen_in_file.add(key)
+
+        # Kind: the parser may force 'transfer'; otherwise sign decides.
+        if row.kind:
+            kind = row.kind
+        else:
+            kind = Transaction.Kind.INCOME if row.amount > 0 else Transaction.Kind.EXPENSE
+        category = (
+            categorizer.categorize(row.description) if kind == Transaction.Kind.EXPENSE else None
+        )
+        to_create.append(
+            Transaction(
+                owner=owner,
+                date=row.date,
+                amount=abs(row.amount),
+                kind=kind,
+                wallet=wallet,
+                category=category,
+                description=row.description,
+                is_paid=True,
+                source=Transaction.Source.IMPORT,
+                external_id=key,
+                installments_current=row.installments_current,
+                installments_total=row.installments_total,
+                needs_review=row.needs_review,
+            )
+        )
+
+    with db_transaction.atomic():
+        batch = ImportBatch(
+            owner=owner,
+            wallet=wallet,
+            source=source,
+            rows_total=len(rows),
+            rows_imported=len(to_create),
+            rows_skipped=skipped,
+        )
+        if stored_file is not None:
+            batch.file = stored_file
+        batch.save()
+        for tx in to_create:
+            tx.save()  # per-row save() keeps period in sync
+
+    return ImportResult(
+        batch=batch,
+        rows_total=len(rows),
+        rows_imported=len(to_create),
+        rows_skipped=skipped,
+    )
+
+
+__all__ = ["run_import", "ImportResult", "ParseError"]

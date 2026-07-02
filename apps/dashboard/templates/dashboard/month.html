@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% load icons %}
+{% block title %}Caudal — {{ period_label }}{% endblock %}
+
+{% block content %}
+  <header class="topbar">
+    <div class="wordmark-sm">{% icon "wallet" "icon" %} Caudal</div>
+    <form method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button class="icon-btn" type="submit" aria-label="Cerrar sesión">{% icon "log-out" "icon" %}</button>
+    </form>
+  </header>
+
+  <div class="monthbar">
+    <a class="nav" href="{% url 'dashboard:month' prev_period %}" aria-label="Mes anterior">{% icon "chevron-right" "icon flip" %}</a>
+    <div class="label">
+      {{ period_label }}
+      {% if is_current %}<small>este mes</small>{% else %}<small>&nbsp;</small>{% endif %}
+    </div>
+    <a class="nav" href="{% url 'dashboard:month' next_period %}" aria-label="Mes siguiente">{% icon "chevron-right" "icon" %}</a>
+  </div>
+
+  <div id="month-body">
+    {% include "dashboard/_month_body.html" %}
+  </div>
+{% endblock %}

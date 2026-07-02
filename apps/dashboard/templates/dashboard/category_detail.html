@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% load money icons %}
+{% block title %}{{ title }} — {{ period_label }}{% endblock %}
+
+{% block content %}
+  <div class="monthbar">
+    <a class="nav" href="{% url 'dashboard:month' period %}" aria-label="Volver">{% icon "chevron-right" "icon flip" %}</a>
+    <div class="label">{{ title }}<small>{{ period_label }}</small></div>
+    <span class="nav" style="visibility:hidden"></span>
+  </div>
+
+  <div class="hero">
+    <div class="k">Total {{ title }}</div>
+    <div class="v pos"><span class="cur">$</span><span class="tnum">{{ total|money }}</span></div>
+    <div class="legend"><span>{{ rows|length }} movimiento{{ rows|length|pluralize }}</span></div>
+  </div>
+
+  <div class="card">
+    {% if rows %}
+      <ul class="tx-list">
+        {% for tx in rows %}{% include "dashboard/_tx_row.html" %}{% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty"><span class="big">{% icon "receipt" "icon-lg" %}</span>No hay movimientos en este rubro para {{ period_label }}.</div>
+    {% endif %}
+  </div>
+{% endblock %}

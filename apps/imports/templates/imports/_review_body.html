@@ -1,0 +1,75 @@
+{% load money icons %}
+
+{% if rows %}
+  <div class="card">
+    <div class="section-title">
+      <span>{{ review_count }} movimiento{{ review_count|pluralize }} para revisar</span>
+      <button class="badge" hx-post="{% url 'imports:review_confirm_all' %}"
+              hx-target="#review-body" hx-swap="innerHTML"
+              hx-confirm="¿Confirmar todos tal cual están?">Confirmar todos</button>
+    </div>
+    <p class="muted" style="font-size:.78rem;margin-top:-.3rem">
+      El resumen de tarjeta no se toma a rajatabla: confirmá categoría y qué parte es tuya.
+      Estos no cuentan en el mes hasta que los confirmes.
+    </p>
+  </div>
+
+  <ul class="rev-list">
+    {% for tx in rows %}
+      <li class="card rev-item">
+        <div class="rev-top">
+          <div class="rev-main">
+            <div class="rev-name">{{ tx.description|default:"(sin descripción)" }}</div>
+            <div class="rev-meta">
+              {{ tx.date|date:"d/m/Y" }} · {{ tx.wallet.name }}
+              {% if tx.installments_total %}
+                <span class="badge">cuota {{ tx.installments_current }}/{{ tx.installments_total }}</span>
+              {% endif %}
+              {% if tx.kind == "income" %}<span class="badge ok">devolución</span>{% endif %}
+            </div>
+          </div>
+          <div class="rev-amt tnum {% if tx.kind == 'income' %}pos{% endif %}">$ {{ tx.amount|money:0 }}</div>
+        </div>
+
+        <form hx-post="{% url 'imports:review_update' tx.id %}" hx-target="#review-body" hx-swap="innerHTML">
+          {% if tx.kind == "expense" %}
+            <div class="two-col">
+              <div class="field">
+                <label>Categoría</label>
+                <select name="category" aria-label="Categoría">
+                  <option value="">Sin categoría</option>
+                  {% for c in categories %}
+                    <option value="{{ c.id }}" {% if tx.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="field">
+                <label>Mi parte</label>
+                <select name="share" aria-label="Qué parte es tuya">
+                  <option value="1.000" {% if tx.shared_ratio|floatformat:3 == "1.000" %}selected{% endif %}>Todo mío</option>
+                  <option value="0.500" {% if tx.shared_ratio|floatformat:3 == "0.500" %}selected{% endif %}>Mitad (50%)</option>
+                  <option value="0.333" {% if tx.shared_ratio|floatformat:3 == "0.333" %}selected{% endif %}>Un tercio (33%)</option>
+                </select>
+              </div>
+            </div>
+          {% endif %}
+          <div class="rev-actions">
+            <button class="btn btn-primary" type="submit">{% icon "check" "icon" %} Confirmar</button>
+            <button class="icon-btn danger" type="button"
+                    hx-post="{% url 'imports:review_delete' tx.id %}" hx-target="#review-body"
+                    hx-swap="innerHTML" hx-confirm="¿Borrar este movimiento?"
+                    aria-label="Borrar">{% icon "trash-2" "icon" %}</button>
+          </div>
+        </form>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <div class="card">
+    <div class="empty">
+      <span class="big">{% icon "check" "icon-lg" %}</span>
+      No hay nada para revisar.<br>
+      Cuando importes la tarjeta, los consumos caen acá para confirmar.
+    </div>
+  </div>
+{% endif %}

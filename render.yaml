@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: caudal
+    runtime: python
+    plan: free
+    buildCommand: >-
+      pip install uv &&
+      uv sync &&
+      uv run python manage.py collectstatic --noinput &&
+      uv run python manage.py migrate &&
+      uv run python manage.py ensure_superuser &&
+      (uv run python manage.py seed_data || true)
+    startCommand: uv run gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.prod
+      - key: PYTHON_VERSION
+        value: "3.12"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      # Primer login admin, creado solo en el build (el plan free no tiene shell
+      # para correr createsuperuser a mano). Cambiá el usuario o la contraseña
+      # generada desde el dashboard de Render cuando quieras.
+      - key: DJANGO_SUPERUSER_USERNAME
+        value: admin
+      - key: DJANGO_SUPERUSER_PASSWORD
+        generateValue: true
+      # Configurar a mano en el dashboard de Render (no se pueden generar solos):
+      #   DATABASE_URL         -> la URL de Postgres de Neon (postgres://...)
+      #   ALLOWED_HOSTS        -> el dominio que te asigna Render (ej. caudal.onrender.com)
+      #   CSRF_TRUSTED_ORIGINS -> https://<ese mismo dominio>

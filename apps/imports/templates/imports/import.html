@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% load icons %}
+{% block title %}Importar CSV — Caudal{% endblock %}
+
+{% block content %}
+  <div class="monthbar">
+    <a class="nav" href="{% url 'dashboard:home' %}" aria-label="Volver">{% icon "chevron-right" "icon flip" %}</a>
+    <div class="label">Importar<small>CSV / export</small></div>
+    <span class="nav" style="visibility:hidden"></span>
+  </div>
+
+  {% if result %}
+    <div class="flash">
+      {% icon "check" "icon" %} Importadas {{ result.rows_imported }} de {{ result.rows_total }} filas.
+      {% if result.rows_skipped %}{{ result.rows_skipped }} duplicadas omitidas.{% endif %}
+    </div>
+  {% endif %}
+  {% if error %}
+    <div class="flash err">No se pudo importar: {{ error }}</div>
+  {% endif %}
+
+  {% if review_count %}
+    <a class="flash review-link" href="{% url 'imports:review' %}">
+      {% icon "receipt" "icon" %} Tenés {{ review_count }} movimiento{{ review_count|pluralize }} de tarjeta para revisar
+      {% icon "chevron-right" "icon" %}
+    </a>
+  {% endif %}
+
+  <div class="card">
+    <div class="section-title"><span>Subir archivo</span></div>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <label class="muted" style="font-size:.8rem">Fuente</label>
+      <div class="field">{{ form.source }}</div>
+      <label class="muted" style="font-size:.8rem">Billetera (DONDE)</label>
+      <div class="field">{{ form.wallet }}</div>
+      <label class="muted" style="font-size:.8rem">Archivo .csv</label>
+      <div class="field">{{ form.file }}</div>
+      {% if form.errors %}
+        <div class="flash err" style="margin-top:.6rem">
+          {% for field, errs in form.errors.items %}{{ field }}: {{ errs|join:", " }}<br>{% endfor %}
+        </div>
+      {% endif %}
+      <button class="btn btn-primary" type="submit" style="margin-top:.8rem">{% icon "download" "icon" %} Importar</button>
+    </form>
+    <p class="muted" style="font-size:.78rem;margin-bottom:0;margin-top:.9rem">
+      Elegí la fuente: <b>Banco ICBC</b> y <b>Tarjeta ICBC</b> tienen su formato propio;
+      el resto detecta las columnas solo. Los consumos de <b>tarjeta</b> caen en
+      "para revisar" (no cuentan en el mes hasta confirmarlos) y los cargos en dólares
+      se valúan con tu cotización. Las filas ya importadas se omiten.
+    </p>
+  </div>
+
+  {% if recent %}
+    <div class="card">
+      <div class="section-title"><span>Importaciones recientes</span></div>
+      <ul class="tx-list">
+        {% for b in recent %}
+          <li class="tx-row">
+            <div class="tx-main">
+              <div class="tx-desc">{{ b.get_source_display }} · {{ b.wallet.name }}</div>
+              <div class="tx-meta"><span>{{ b.imported_at|date:"d/m/Y H:i" }}</span></div>
+            </div>
+            <span class="tx-amount tnum">{{ b.rows_imported }}/{{ b.rows_total }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+{% endblock %}

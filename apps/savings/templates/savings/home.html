@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% load icons %}
+{% block title %}Caudal — Ahorros{% endblock %}
+
+{% block content %}
+  <header class="topbar">
+    <div class="wordmark-sm">{% icon "wallet" "icon" %} Caudal</div>
+    <form method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button class="icon-btn" type="submit" aria-label="Cerrar sesión">{% icon "log-out" "icon" %}</button>
+    </form>
+  </header>
+
+  <div class="monthbar">
+    <a class="nav" href="{% url 'dashboard:home' %}" aria-label="Volver al mes">{% icon "chevron-right" "icon flip" %}</a>
+    <div class="label">
+      Ahorros
+      <small>patrimonio en dólares</small>
+    </div>
+    <span class="nav" style="visibility:hidden">{% icon "chevron-right" "icon" %}</span>
+  </div>
+
+  <div id="savings-body">
+    {% include "savings/_body.html" %}
+  </div>
+{% endblock %}

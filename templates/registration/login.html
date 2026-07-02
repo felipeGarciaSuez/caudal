@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load icons %}
+{% block title %}Ingresar — Caudal{% endblock %}
+
+{% block content %}
+  <div class="login">
+    <div class="brand">
+      <div class="logo">{% icon "wallet" "icon" %}</div>
+      <div class="wordmark">Caudal</div>
+      <div class="tagline">Tus finanzas, sin gastos hormiga sueltos.</div>
+    </div>
+
+    <div class="card">
+      {% if form.errors %}
+        <div class="flash err">Usuario o contraseña incorrectos.</div>
+      {% endif %}
+      <form method="post" action="{% url 'login' %}">
+        {% csrf_token %}
+        <label class="fld">
+          <span class="ic">{% icon "user" "icon" %}</span>
+          <input class="input" type="text" name="username" placeholder="Usuario"
+                 autocomplete="username" autocapitalize="none" required autofocus
+                 value="{{ form.username.value|default:'' }}">
+        </label>
+        <label class="fld">
+          <span class="ic">{% icon "lock-keyhole" "icon" %}</span>
+          <input class="input" type="password" name="password" placeholder="Contraseña"
+                 autocomplete="current-password" required>
+        </label>
+        <input type="hidden" name="next" value="{{ next }}">
+        <button class="btn btn-primary" type="submit">Ingresar</button>
+      </form>
+    </div>
+  </div>
+{% endblock %}
+
+{% block tabbar %}{% endblock %}

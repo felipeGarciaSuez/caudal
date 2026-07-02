@@ -1,0 +1,178 @@
+{% load money icons %}
+
+{% if just_saved %}
+  <div class="flash">{% icon "check" "icon" %} Guardado.</div>
+{% endif %}
+{% if form_error %}
+  <div class="flash err">{{ form_error }}</div>
+{% endif %}
+
+{# ---------- HERO: PATRIMONIO EN DÓLARES ---------- #}
+<div class="hero">
+  <div class="k">Tus dólares</div>
+  <div class="v pos"><span class="cur">US$</span><span class="tnum">{{ portfolio.total_usd|money:2 }}</span></div>
+  {% if portfolio.has_price %}
+    <div class="legend">
+      <span>≈ en pesos</span>
+      <b class="tnum">$ {{ portfolio.total_value_ars|money:0 }}</b>
+    </div>
+    {% if portfolio.total_pnl_ars is not None and portfolio.total_cost_ars %}
+      <div class="legend">
+        <span>ganancia vs. lo que pusiste</span>
+        <b class="tnum {% if portfolio.total_pnl_ars < 0 %}neg{% else %}pos{% endif %}">
+          {% if portfolio.total_pnl_ars >= 0 %}+{% endif %}$ {{ portfolio.total_pnl_ars|money:0 }}
+        </b>
+      </div>
+    {% endif %}
+  {% else %}
+    <div class="legend"><span class="muted">Cargá la cotización para ver el valor en pesos.</span></div>
+  {% endif %}
+  <form class="quote-edit" hx-post="{% url 'savings:set_price' %}" hx-target="#savings-body" hx-swap="innerHTML">
+    <label>{% icon "dollar-sign" "icon" %} Dólar hoy $</label>
+    <input type="text" name="price" inputmode="decimal" placeholder="1350"
+           value="{% if dollar_price %}{{ dollar_price|money:0 }}{% endif %}"
+           hx-trigger="change" aria-label="Cotización del dólar">
+  </form>
+</div>
+
+{# ---------- POR DÓNDE ESTÁN ---------- #}
+<div class="card">
+  <div class="section-title"><span>Dónde están tus dólares</span></div>
+  {% if portfolio.rows %}
+    <ul class="asset-list">
+      {% for row in portfolio.rows %}
+        <li class="asset-block">
+          <div class="asset-head">
+            <span class="ic">{% if row.asset.kind == 'fiat_cash' %}{% icon "banknote" "icon" %}{% else %}{% icon "coins" "icon" %}{% endif %}</span>
+            <div class="asset-main">
+              <div class="name">{{ row.asset.name }}</div>
+              <div class="sub">
+                US$ {{ row.qty|money:2 }}
+                {% if row.avg_price %}· compraste a ~$ {{ row.avg_price|money:0 }}{% endif %}
+              </div>
+            </div>
+            <div class="asset-val">
+              {% if row.value_ars is not None %}<span class="tnum">$ {{ row.value_ars|money:0 }}</span>{% endif %}
+              {% if row.pnl_ars is not None and row.cost_ars %}
+                <span class="pnl tnum {% if row.pnl_ars < 0 %}neg{% else %}pos{% endif %}">
+                  {% if row.pnl_ars >= 0 %}+{% endif %}$ {{ row.pnl_ars|money:0 }}
+                </span>
+              {% endif %}
+            </div>
+          </div>
+          <ul class="loc-list">
+            {% for name, qty in row.locations %}
+              <li class="loc-row">
+                <span>{% icon "map-pin" "icon" %} {{ name }}</span>
+                <span class="tnum">US$ {{ qty|money:2 }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="empty">
+      <span class="big">{% icon "piggy-bank" "icon-lg" %}</span>
+      Todavía no cargaste ahorros.<br>
+      Registrá tu primera compra de dólares abajo.
+    </div>
+  {% endif %}
+</div>
+
+{# ---------- CARGAR COMPRA (acción principal) ---------- #}
+<div class="card">
+  <div class="section-title"><span>{% icon "plus" "icon" %} Registrar operación</span></div>
+  {{ holdings_by_asset|json_script:"sv-holdings" }}
+  <form class="save-form" hx-post="{% url 'savings:add_movement' %}" hx-target="#savings-body" hx-swap="innerHTML"
+        x-data="{ mode: 'buy', usd: '', ars: '', asset: '{{ assets.0.id }}',
+                  holdings: JSON.parse(document.getElementById('sv-holdings').textContent),
+                  get places() { return this.holdings[this.asset] || [] } }"
+        @htmx:after-request="if ($event.detail.successful) { usd=''; ars='' }">
+    <input type="hidden" name="kind" :value="mode">
+    <div class="seg" role="tablist">
+      <button type="button" :class="{ active: mode === 'buy' }" @click="mode = 'buy'">Compra</button>
+      <button type="button" :class="{ active: mode === 'sell', sell: mode === 'sell' }" @click="mode = 'sell'">Venta</button>
+    </div>
+    <div class="two-col">
+      <div class="field">
+        <label>Dólares</label>
+        <input type="text" name="quantity" x-model="usd" inputmode="decimal" placeholder="100" aria-label="Cantidad de dólares">
+      </div>
+      <div class="field">
+        <label x-text="mode === 'buy' ? 'Pesos que pusiste' : 'Pesos que recibiste'">Pesos que pusiste</label>
+        <input type="text" name="ars_amount" x-model="ars" inputmode="decimal" placeholder="135000" aria-label="Monto en pesos">
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="field">
+        <label>Tipo</label>
+        <select name="asset" x-model="asset" aria-label="Tipo de dólar">
+          {% for a in assets %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label x-text="mode === 'buy' ? 'Dónde lo guardás' : 'De dónde los sacás'">Dónde lo guardás</label>
+        {# Buy: free text (can be a new place). Sell: only where you actually hold them. #}
+        <input x-show="mode === 'buy'" :disabled="mode === 'sell'" type="text" name="location"
+               list="loc-options" placeholder="Colchón, Belo…" aria-label="Ubicación">
+        <datalist id="loc-options">
+          {% for loc in locations %}<option value="{{ loc }}">{% endfor %}
+        </datalist>
+        <select x-show="mode === 'sell'" x-cloak :disabled="mode === 'buy'" name="location" aria-label="De dónde vendés">
+          <template x-for="place in places" :key="place">
+            <option :value="place" x-text="place"></option>
+          </template>
+          <option x-show="places.length === 0" value="" disabled>No tenés de este tipo</option>
+        </select>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="field">
+        <label>Fecha</label>
+        <input type="date" name="date" value="{{ today|date:'Y-m-d' }}" aria-label="Fecha">
+      </div>
+      <div class="field">
+        <label x-text="mode === 'buy' ? 'Salió de' : 'Entró a'">Salió de</label>
+        <select name="from_wallet" aria-label="Billetera">
+          {% for w in wallets %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}
+          <option value="">Ninguna billetera</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit"
+            :disabled="!usd || !ars || (mode === 'sell' && places.length === 0)"
+            x-text="mode === 'buy' ? 'Guardar compra' : 'Guardar venta'">Guardar compra</button>
+    <p class="hint muted"
+       x-text="mode === 'buy' ? 'Si sale de una billetera, se carga como gasto grande (categoría Ahorro) en el mes. Sin billetera, no toca el RESTO SUELDO.' : 'Si entra a una billetera, se suma de nuevo al RESTO SUELDO del mes.'">
+    </p>
+  </form>
+</div>
+
+{# ---------- MOVIMIENTOS ---------- #}
+{% if movements %}
+<div class="card">
+  <div class="section-title"><span>Últimos movimientos</span></div>
+  <ul class="mv-list">
+    {% for mv in movements %}
+      <li class="mv-row">
+        <div class="mv-main">
+          <div class="name">
+            <span class="op {{ mv.kind }}">{{ mv.get_kind_display }}</span>
+            US$ {{ mv.quantity|money:2 }} · {{ mv.asset.name }}
+          </div>
+          <div class="sub">
+            {{ mv.date|date:"d/m/Y" }}
+            {% if mv.ars_amount %}· $ {{ mv.ars_amount|money:0 }}{% endif %}
+            {% if mv.location %}· {{ mv.location }}{% endif %}
+            {% if mv.from_wallet %}· {{ mv.from_wallet.name }}{% endif %}
+          </div>
+        </div>
+        <button class="icon-btn danger" hx-post="{% url 'savings:delete_movement' mv.id %}"
+                hx-target="#savings-body" hx-swap="innerHTML"
+                hx-confirm="¿Borrar este movimiento?" aria-label="Borrar">{% icon "trash-2" "icon" %}</button>
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}

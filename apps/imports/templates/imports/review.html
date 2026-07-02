@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% load icons %}
+{% block title %}Revisar importados — Caudal{% endblock %}
+
+{% block content %}
+  <div class="monthbar">
+    <a class="nav" href="{% url 'imports:import' %}" aria-label="Volver">{% icon "chevron-right" "icon flip" %}</a>
+    <div class="label">Para revisar<small>tarjeta y dudosos</small></div>
+    <span class="nav" style="visibility:hidden"></span>
+  </div>
+
+  <div id="review-body">
+    {% include "imports/_review_body.html" %}
+  </div>
+{% endblock %}
