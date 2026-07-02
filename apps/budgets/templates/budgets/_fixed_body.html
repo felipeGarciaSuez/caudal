@@ -143,7 +143,7 @@
       <div class="empty">
         Te falta algo para crear un fijo:<br>
         {% if not wallets %}<a href="{% url 'wallets:wallets' %}">Agregá una billetera →</a><br>{% endif %}
-        {% if not categories %}una categoría fija (desde el <a href="/admin/">admin</a> por ahora).{% endif %}
+        {% if not categories %}<a href="{% url 'transactions:categories' %}">Agregá una categoría fija →</a>{% endif %}
       </div>
     {% endif %}
   </div>
