@@ -25,6 +25,9 @@
   </div>
 
   <a class="config-link" href="{% url 'wallets:wallets' %}">
-    {% icon "wallet" "icon" %} Gestionar billeteras {% icon "chevron-right" "icon" %}
+    {% icon "wallet" "icon" %} Billeteras {% icon "chevron-right" "icon" %}
+  </a>
+  <a class="config-link" href="{% url 'transactions:categories' %}">
+    {% icon "tag" "icon" %} Categorías {% icon "chevron-right" "icon" %}
   </a>
 {% endblock %}

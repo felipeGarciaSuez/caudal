@@ -1,0 +1,66 @@
+{% load icons %}
+
+{% if just_saved %}
+  <div class="flash">{% icon "check" "icon" %} Guardado.</div>
+{% endif %}
+{% if form_error %}
+  <div class="flash err">{{ form_error }}</div>
+{% endif %}
+
+{# ---------- LISTA DE CATEGORÍAS ---------- #}
+<div class="card">
+  <div class="section-title">
+    <span>Tus categorías</span>
+    <span class="badge">{{ categories|length }}</span>
+  </div>
+
+  {% if categories %}
+    {% regroup categories by get_kind_display as kind_groups %}
+    {% for group in kind_groups %}
+      <div class="fx-group-label">{{ group.grouper }}</div>
+      <ul class="fx-list">
+        {% for c in group.list %}
+          <li class="fx-row" x-data="{ edit: false }">
+            <button type="button" class="fx-main" @click="edit = !edit"
+                    style="text-align:left;background:none;border:0;padding:0;cursor:pointer;color:inherit">
+              <div class="fx-name">{% icon c.icon|default:"tag" "icon" %} {{ c.name }}</div>
+              <div class="fx-where">
+                {{ c.get_kind_display }}
+                {% if c.parent %} · en {{ c.parent.name }}{% endif %}
+                {% if c.child_count %} · grupo de {{ c.child_count }}{% endif %}
+              </div>
+            </button>
+            <button type="button" class="icon-btn" @click="edit = !edit" aria-label="Editar">{% icon "pencil" "icon" %}</button>
+            <div x-show="edit" x-cloak class="fx-edit" style="flex-basis:100%;margin-top:.8rem">
+              {% url 'transactions:update_category' c.id as post_url %}
+              {% include "transactions/_category_form.html" with cat=c post_url=post_url %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endfor %}
+    <p class="hint muted" style="margin-top:.8rem">
+      El tipo define dónde suma: <b>fijo</b> va al checklist de gastos grandes, <b>variable</b> se
+      agrega por categoría, <b>hormiga</b> es el gasto chico. Un grupo (ej. Gastos Vivienda) junta
+      varios fijos en el checklist.
+    </p>
+  {% else %}
+    <div class="empty">
+      <span class="big">{% icon "tag" "icon-lg" %}</span>
+      Todavía no tenés categorías.<br>
+      Cargá la primera abajo.
+    </div>
+  {% endif %}
+</div>
+
+{# ---------- ALTA DE UNA CATEGORÍA ---------- #}
+<div class="card" x-data="{ open: {% if not categories %}true{% else %}false{% endif %} }">
+  <button type="button" class="collapse-head" @click="open = !open">
+    <span>{% icon "plus" "icon" %} Agregar una categoría</span>
+    <span class="chev" :class="{ 'rot': open }">{% icon "chevron-right" "icon" %}</span>
+  </button>
+  <div x-show="open" x-cloak style="margin-top:.9rem">
+    {% url 'transactions:add_category' as post_url %}
+    {% include "transactions/_category_form.html" with cat=None post_url=post_url %}
+  </div>
+</div>
