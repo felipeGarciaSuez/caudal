@@ -13,5 +13,7 @@ urlpatterns = [
     path("accounts/logout/", auth_views.LogoutView.as_view(), name="logout"),
     path("import/", include("apps.imports.urls")),
     path("savings/", include("apps.savings.urls")),
+    path("fijos/", include("apps.budgets.urls")),
+    path("billeteras/", include("apps.wallets.urls")),
     path("", include("apps.dashboard.urls")),
 ]

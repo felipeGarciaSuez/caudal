@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load icons %}
+{% block title %}Caudal — Gastos fijos{% endblock %}
+
+{% block content %}
+  <header class="topbar">
+    <div class="wordmark-sm">{% icon "wallet" "icon" %} Caudal</div>
+    <form method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button class="icon-btn" type="submit" aria-label="Cerrar sesión">{% icon "log-out" "icon" %}</button>
+    </form>
+  </header>
+
+  <div class="monthbar">
+    <a class="nav" href="{% url 'dashboard:home' %}" aria-label="Volver al mes">{% icon "chevron-right" "icon flip" %}</a>
+    <div class="label">
+      Gastos fijos
+      <small>se cargan solos cada mes</small>
+    </div>
+    <span class="nav" style="visibility:hidden">{% icon "chevron-right" "icon" %}</span>
+  </div>
+
+  <div id="fixed-body">
+    {% include "budgets/_fixed_body.html" %}
+  </div>
+
+  <a class="config-link" href="{% url 'wallets:wallets' %}">
+    {% icon "wallet" "icon" %} Gestionar billeteras {% icon "chevron-right" "icon" %}
+  </a>
+{% endblock %}

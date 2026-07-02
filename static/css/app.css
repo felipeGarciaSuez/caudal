@@ -170,6 +170,11 @@ select:focus, .input:focus { outline: none; border-color: var(--brand); }
   border-radius: 12px; padding: .7rem 1rem; font-size: .95rem; font-weight: 700; cursor: pointer; width: 100%; }
 .btn:active { transform: scale(.99); }
 .btn-primary { background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #04231b; border-color: transparent; }
+.btn.danger { color: var(--neg); border-color: color-mix(in srgb, var(--neg) 45%, var(--line)); background: color-mix(in srgb, var(--neg) 10%, transparent); }
+.config-link { display: flex; align-items: center; gap: .5rem; justify-content: center;
+  color: var(--muted); font-weight: 600; font-size: .9rem; text-decoration: none;
+  padding: .9rem; margin-top: .2rem; }
+.config-link .icon { width: 18px; height: 18px; }
 
 .flash { display: flex; align-items: center; gap: .5rem; padding: .7rem .9rem; border-radius: 14px;
   font-size: .88rem; font-weight: 600; margin-bottom: .9rem;
@@ -254,7 +259,7 @@ select:focus, .input:focus { outline: none; border-color: var(--brand); }
   letter-spacing: .08em; margin: .9rem 0 .3rem; }
 .fx-group-label:first-child { margin-top: 0; }
 .fx-list { list-style: none; margin: 0; padding: 0; }
-.fx-row { display: flex; align-items: center; gap: .7rem; padding: .7rem .6rem; margin: 0 -.6rem;
+.fx-row { display: flex; flex-wrap: wrap; align-items: center; gap: .7rem; padding: .7rem .6rem; margin: 0 -.6rem;
   border-bottom: 1px solid var(--line); }
 .fx-row:last-child { border-bottom: none; }
 .fx-row.pending { background: color-mix(in srgb, var(--variable) 8%, transparent); border-radius: 10px; }

@@ -1,0 +1,142 @@
+{% load icons %}
+
+{% if just_saved %}
+  <div class="flash">{% icon "check" "icon" %} Guardado.</div>
+{% endif %}
+{% if form_error %}
+  <div class="flash err">{{ form_error }}</div>
+{% endif %}
+
+{# ---------- LISTA DE BILLETERAS ---------- #}
+<div class="card">
+  <div class="section-title">
+    <span>Tus billeteras</span>
+    {% if active_count %}<span class="badge">{{ active_count }} activa{{ active_count|pluralize }}</span>{% endif %}
+  </div>
+
+  {% if wallets %}
+    <ul class="fx-list">
+      {% for w in wallets %}
+        <li class="fx-row {% if not w.is_active %}pending{% endif %}" x-data="{ edit: false, kind: '{{ w.kind }}' }">
+          <button class="paid-toggle {% if w.is_active %}paid{% endif %}"
+                  hx-post="{% url 'wallets:toggle_wallet' w.id %}"
+                  hx-target="#wallets-body" hx-swap="innerHTML"
+                  aria-label="{% if w.is_active %}Activa (tocar para pausar){% else %}Pausada (tocar para activar){% endif %}">{% icon "check" "icon" %}</button>
+          <button type="button" class="fx-main" @click="edit = !edit" style="text-align:left;background:none;border:0;padding:0;cursor:pointer;color:inherit">
+            <div class="fx-name">
+              {% if w.kind == 'bank' %}{% icon "building-2" "icon" %}
+              {% elif w.kind == 'wallet' %}{% icon "smartphone" "icon" %}
+              {% elif w.kind == 'cash' %}{% icon "banknote" "icon" %}
+              {% elif w.kind == 'credit_card' %}{% icon "credit-card" "icon" %}
+              {% endif %}
+              {{ w.name }}
+            </div>
+            <div class="fx-where">
+              {{ w.get_kind_display }}{% if w.currency != 'ARS' %} · {{ w.currency }}{% endif %}
+              {% if w.is_credit_card and w.closing_day %} · cierre {{ w.closing_day }}{% endif %}
+              {% if w.is_credit_card and w.due_day %} · vence {{ w.due_day }}{% endif %}
+              {% if not w.is_active %} · <span class="pending-tag">pausada</span>{% endif %}
+            </div>
+          </button>
+          <button type="button" class="icon-btn" @click="edit = !edit" aria-label="Editar">{% icon "pencil" "icon" %}</button>
+
+          <div x-show="edit" x-cloak class="fx-edit" style="flex-basis:100%;margin-top:.8rem">
+            <form class="save-form" hx-post="{% url 'wallets:update_wallet' w.id %}"
+                  hx-target="#wallets-body" hx-swap="innerHTML">
+              <div class="field">
+                <label>Nombre</label>
+                <input type="text" name="name" value="{{ w.name }}" required aria-label="Nombre">
+              </div>
+              <div class="two-col">
+                <div class="field">
+                  <label>Tipo</label>
+                  <select name="kind" x-model="kind" aria-label="Tipo">
+                    {% for value, label in kinds %}
+                      <option value="{{ value }}" {% if value == w.kind %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Moneda</label>
+                  <input type="text" name="currency" value="{{ w.currency }}" maxlength="3" aria-label="Moneda">
+                </div>
+              </div>
+              <div class="two-col" x-show="kind === '{{ credit_kind }}'" x-cloak>
+                <div class="field">
+                  <label>Día de cierre</label>
+                  <input type="number" name="closing_day" inputmode="numeric" min="1" max="31"
+                         value="{{ w.closing_day|default:'' }}" aria-label="Día de cierre">
+                </div>
+                <div class="field">
+                  <label>Día de vencimiento</label>
+                  <input type="number" name="due_day" inputmode="numeric" min="1" max="31"
+                         value="{{ w.due_day|default:'' }}" aria-label="Día de vencimiento">
+                </div>
+              </div>
+              <div class="two-col">
+                <button class="btn btn-primary" type="submit">Guardar cambios</button>
+                <button class="btn danger" type="button"
+                        hx-post="{% url 'wallets:delete_wallet' w.id %}"
+                        hx-target="#wallets-body" hx-swap="innerHTML"
+                        hx-confirm="¿Borrar esta billetera? Solo se puede si no tiene movimientos.">
+                  {% icon "trash-2" "icon" %} Borrar
+                </button>
+              </div>
+            </form>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+    <p class="hint muted" style="margin-top:.8rem">
+      Pausar una billetera la saca de los selectores sin borrar su historial. Borrar solo se puede
+      si nunca tuvo movimientos ni gastos fijos.
+    </p>
+  {% else %}
+    <div class="empty">
+      <span class="big">{% icon "wallet" "icon-lg" %}</span>
+      Todavía no tenés billeteras.<br>
+      Cargá la primera abajo (banco, MP, efectivo, tarjeta…).
+    </div>
+  {% endif %}
+</div>
+
+{# ---------- ALTA DE UNA BILLETERA ---------- #}
+<div class="card" x-data="{ open: {% if not wallets %}true{% else %}false{% endif %}, kind: 'bank' }">
+  <button type="button" class="collapse-head" @click="open = !open">
+    <span>{% icon "plus" "icon" %} Agregar una billetera</span>
+    <span class="chev" :class="{ 'rot': open }">{% icon "chevron-right" "icon" %}</span>
+  </button>
+  <div x-show="open" x-cloak style="margin-top:.9rem">
+    <form class="save-form" hx-post="{% url 'wallets:add_wallet' %}"
+          hx-target="#wallets-body" hx-swap="innerHTML"
+          @htmx:after-request="if ($event.detail.successful) { $el.reset(); kind = 'bank' }">
+      <div class="field">
+        <label>Nombre</label>
+        <input type="text" name="name" placeholder="ICBC, Mercado Pago, Efectivo…" required aria-label="Nombre">
+      </div>
+      <div class="two-col">
+        <div class="field">
+          <label>Tipo</label>
+          <select name="kind" x-model="kind" aria-label="Tipo">
+            {% for value, label in kinds %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Moneda</label>
+          <input type="text" name="currency" value="ARS" maxlength="3" aria-label="Moneda">
+        </div>
+      </div>
+      <div class="two-col" x-show="kind === '{{ credit_kind }}'" x-cloak>
+        <div class="field">
+          <label>Día de cierre</label>
+          <input type="number" name="closing_day" inputmode="numeric" min="1" max="31" placeholder="—" aria-label="Día de cierre">
+        </div>
+        <div class="field">
+          <label>Día de vencimiento</label>
+          <input type="number" name="due_day" inputmode="numeric" min="1" max="31" placeholder="—" aria-label="Día de vencimiento">
+        </div>
+      </div>
+      <button class="btn btn-primary" type="submit" style="width:100%">Guardar billetera</button>
+    </form>
+  </div>
+</div>

@@ -1,0 +1,150 @@
+{% load money icons %}
+
+{% if just_saved %}
+  <div class="flash">{% icon "check" "icon" %} Guardado.</div>
+{% endif %}
+{% if form_error %}
+  <div class="flash err">{{ form_error }}</div>
+{% endif %}
+
+{# ---------- LISTA DE FIJOS ---------- #}
+<div class="card">
+  <div class="section-title">
+    <span>Tus gastos fijos</span>
+    {% if active_count %}<span class="badge">{{ active_count }} activo{{ active_count|pluralize }}</span>{% endif %}
+  </div>
+
+  {% if recurring %}
+    <ul class="fx-list">
+      {% for r in recurring %}
+        <li class="fx-row {% if not r.is_active %}pending{% endif %}" x-data="{ edit: false }">
+          <button class="paid-toggle {% if r.is_active %}paid{% endif %}"
+                  hx-post="{% url 'budgets:toggle_recurring' r.id %}"
+                  hx-target="#fixed-body" hx-swap="innerHTML"
+                  aria-label="{% if r.is_active %}Activo (tocar para pausar){% else %}Pausado (tocar para activar){% endif %}">{% icon "check" "icon" %}</button>
+          <button type="button" class="fx-main" @click="edit = !edit" style="text-align:left;background:none;border:0;padding:0;cursor:pointer;color:inherit">
+            <div class="fx-name">{{ r.name }}</div>
+            <div class="fx-where">
+              {{ r.category.name }} · {{ r.wallet.name }} · día {{ r.day_of_month }}
+              {% if not r.is_active %} · <span class="pending-tag">pausado</span>{% endif %}
+            </div>
+          </button>
+          <span class="fx-amt tnum">$ {{ r.default_amount|money:0 }}</span>
+          <button type="button" class="icon-btn" @click="edit = !edit" aria-label="Editar">{% icon "pencil" "icon" %}</button>
+
+          <div x-show="edit" x-cloak class="fx-edit" style="flex-basis:100%;margin-top:.8rem">
+            <form class="save-form" hx-post="{% url 'budgets:update_recurring' r.id %}"
+                  hx-target="#fixed-body" hx-swap="innerHTML">
+              <div class="field">
+                <label>Nombre</label>
+                <input type="text" name="name" value="{{ r.name }}" required aria-label="Nombre">
+              </div>
+              <div class="two-col">
+                <div class="field">
+                  <label>Monto</label>
+                  <input type="number" name="default_amount" inputmode="decimal" step="0.01" min="0"
+                         value="{{ r.default_amount|stringformat:'.2f' }}" required aria-label="Monto">
+                </div>
+                <div class="field">
+                  <label>Día del mes</label>
+                  <input type="number" name="day_of_month" inputmode="numeric" min="1" max="31"
+                         value="{{ r.day_of_month }}" required aria-label="Día del mes">
+                </div>
+              </div>
+              <div class="two-col">
+                <div class="field">
+                  <label>Categoría</label>
+                  <select name="category" aria-label="Categoría">
+                    {% for c in categories %}
+                      <option value="{{ c.id }}" {% if c.id == r.category_id %}selected{% endif %}>{{ c.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Billetera</label>
+                  <select name="wallet" aria-label="Billetera">
+                    {% for w in wallets %}
+                      <option value="{{ w.id }}" {% if w.id == r.wallet_id %}selected{% endif %}>{{ w.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              <div class="two-col">
+                <button class="btn btn-primary" type="submit">Guardar cambios</button>
+                <button class="btn btn-ghost danger" type="button"
+                        hx-post="{% url 'budgets:delete_recurring' r.id %}"
+                        hx-target="#fixed-body" hx-swap="innerHTML"
+                        hx-confirm="¿Borrar este gasto fijo? Los meses ya cargados quedan como están.">
+                  {% icon "trash-2" "icon" %} Borrar
+                </button>
+              </div>
+            </form>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+    <p class="hint muted" style="margin-top:.8rem">
+      Pausar un fijo deja de cargarlo en los meses que vienen. Cambiar el monto acá es el valor por defecto:
+      cada mes lo podés ajustar en el checklist sin tocar la plantilla.
+    </p>
+  {% else %}
+    <div class="empty">
+      <span class="big">{% icon "repeat" "icon-lg" %}</span>
+      Todavía no configuraste gastos fijos.<br>
+      Cargá el primero abajo (alquiler, expensas, gym…).
+    </div>
+  {% endif %}
+</div>
+
+{# ---------- ALTA DE UN FIJO NUEVO ---------- #}
+<div class="card" x-data="{ open: {% if not recurring %}true{% else %}false{% endif %} }">
+  <button type="button" class="collapse-head" @click="open = !open">
+    <span>{% icon "plus" "icon" %} Agregar un gasto fijo</span>
+    <span class="chev" :class="{ 'rot': open }">{% icon "chevron-right" "icon" %}</span>
+  </button>
+  <div x-show="open" x-cloak style="margin-top:.9rem">
+    {% if categories and wallets %}
+      <form class="save-form" hx-post="{% url 'budgets:add_recurring' %}"
+            hx-target="#fixed-body" hx-swap="innerHTML"
+            @htmx:after-request="if ($event.detail.successful) $el.reset()">
+        <div class="field">
+          <label>Nombre</label>
+          <input type="text" name="name" placeholder="Alquiler, Gym, Netflix…" required aria-label="Nombre">
+        </div>
+        <div class="two-col">
+          <div class="field">
+            <label>Monto</label>
+            <input type="number" name="default_amount" inputmode="decimal" step="0.01" min="0"
+                   placeholder="0" required aria-label="Monto">
+          </div>
+          <div class="field">
+            <label>Día del mes</label>
+            <input type="number" name="day_of_month" inputmode="numeric" min="1" max="31"
+                   value="1" required aria-label="Día del mes">
+          </div>
+        </div>
+        <div class="two-col">
+          <div class="field">
+            <label>Categoría</label>
+            <select name="category" aria-label="Categoría">
+              {% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Billetera</label>
+            <select name="wallet" aria-label="Billetera">
+              {% for w in wallets %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" type="submit" style="width:100%">Guardar gasto fijo</button>
+      </form>
+    {% else %}
+      <div class="empty">
+        Te falta algo para crear un fijo:<br>
+        {% if not wallets %}<a href="{% url 'wallets:wallets' %}">Agregá una billetera →</a><br>{% endif %}
+        {% if not categories %}una categoría fija (desde el <a href="/admin/">admin</a> por ahora).{% endif %}
+      </div>
+    {% endif %}
+  </div>
+</div>

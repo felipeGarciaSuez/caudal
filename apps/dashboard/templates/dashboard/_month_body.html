@@ -45,11 +45,14 @@
 <div class="card">
   <div class="section-title">
     <span>Gastos grandes</span>
-    {% if m.fixed_count %}
-      <span class="badge {% if m.fixed_all_paid %}ok{% endif %}">
-        {% if m.fixed_all_paid %}{% icon "check" "icon" %}{% endif %}{{ m.fixed_paid_count }}/{{ m.fixed_count }} pagados
-      </span>
-    {% endif %}
+    <span style="display:flex;align-items:center;gap:.5rem">
+      {% if m.fixed_count %}
+        <span class="badge {% if m.fixed_all_paid %}ok{% endif %}">
+          {% if m.fixed_all_paid %}{% icon "check" "icon" %}{% endif %}{{ m.fixed_paid_count }}/{{ m.fixed_count }} pagados
+        </span>
+      {% endif %}
+      <a class="icon-btn" href="{% url 'budgets:fixed' %}" aria-label="Configurar gastos fijos">{% icon "repeat" "icon" %}</a>
+    </span>
   </div>
 
   {% if fixed_rows %}
@@ -111,7 +114,7 @@
     <div class="empty">
       <span class="big">{% icon "receipt" "icon-lg" %}</span>
       No tenés gastos grandes cargados este mes.<br>
-      <a href="/admin/budgets/recurringexpense/add/">Configurá tus fijos recurrentes →</a>
+      <a href="{% url 'budgets:fixed' %}">Configurá tus gastos fijos →</a>
     </div>
   {% endif %}
 
@@ -236,6 +239,7 @@
         <select name="wallet" aria-label="Billetera">
           {% for w in wallets %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}
         </select>
+        <a class="hint muted" href="{% url 'wallets:wallets' %}" style="display:inline-block;margin-top:.4rem">{% icon "wallet" "icon" %} Gestionar billeteras</a>
       </div>
       <div class="chips" style="margin-top:.7rem">
         {% for c in quick_categories %}
