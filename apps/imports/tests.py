@@ -15,7 +15,7 @@ from apps.imports.parsers import (
     parse_csv,
     parse_date,
 )
-from apps.imports.services import _shift_one_month, run_import
+from apps.imports.services import MAX_IMPORT_ROWS, _shift_one_month, run_import
 from apps.transactions.models import Category, Transaction
 from apps.wallets.models import Wallet
 
@@ -124,6 +124,16 @@ def test_run_import_creates_transactions_with_kinds(user, wallet):
     assert expense.source == Transaction.Source.IMPORT
     assert income.amount == Decimal("5000.00")
     assert expense.period == "2026-06"
+
+
+def test_run_import_rejects_too_many_rows(user, wallet):
+    # A file over the ceiling must be refused before any INSERT (DoS guard).
+    rows = [
+        f"{(i % 28) + 1:02d}/06/2026;Gasto {i};-{i + 1},00\n" for i in range(MAX_IMPORT_ROWS + 1)
+    ]
+    with pytest.raises(ParseError):
+        run_import(owner=user, wallet=wallet, source="mercadopago", file=_csv(rows))
+    assert Transaction.objects.count() == 0
 
 
 def test_run_import_dedupes_on_reimport(user, wallet):
