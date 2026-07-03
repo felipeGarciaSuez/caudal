@@ -1,0 +1,84 @@
+{% load money icons %}
+
+<div class="hero">
+  <div class="k">Total del resumen</div>
+  <div class="v {% if is_paid %}pos{% else %}neg{% endif %}">
+    <span class="cur">$</span><span class="tnum">{{ total|money }}</span>
+  </div>
+  <div class="legend">
+    <span>{{ count }} consumo{{ count|pluralize }}{% if unreviewed %} · {{ unreviewed }} sin revisar{% endif %}</span>
+  </div>
+  <button class="btn {% if is_paid %}btn-primary{% endif %}" style="margin-top:.8rem;width:100%"
+          hx-post="{% url 'dashboard:toggle_statement_paid' wallet.id period %}"
+          hx-vals='{"scope":"statement"}'
+          hx-target="#statement-body" hx-swap="innerHTML">
+    {% icon "check" "icon" %} {% if is_paid %}Pagado (tocar para desmarcar){% else %}Marcar como pagado{% endif %}
+  </button>
+</div>
+
+<div class="card">
+  <div class="section-title"><span>Consumos</span></div>
+  <p class="muted" style="font-size:.78rem;margin-top:-.3rem">
+    Asigná categoría y qué parte es tuya a cada consumo. Todo el resumen ya cuenta en el mes; el
+    tick de arriba es solo para saber si lo pagaste.
+  </p>
+
+  {% if rows %}
+    <ul class="rev-list">
+      {% for tx in rows %}
+        <li class="card rev-item {% if tx.needs_review %}pending{% endif %}">
+          <div class="rev-top">
+            <div class="rev-main">
+              <div class="rev-name">{{ tx.description|default:tx.category|default:"(sin descripción)" }}</div>
+              <div class="rev-meta">
+                {{ tx.date|date:"d/m/Y" }}
+                {% if tx.installments_total %}
+                  <span class="badge">cuota {{ tx.installments_current }}/{{ tx.installments_total }}</span>
+                {% endif %}
+                {% if tx.category %}<span class="badge">{{ tx.category.name }}</span>{% endif %}
+                {% if tx.is_shared %}<span class="badge">mi parte $ {{ tx.own_amount|money:0 }}</span>{% endif %}
+                {% if tx.needs_review %}<span class="badge warn">sin revisar</span>{% endif %}
+              </div>
+            </div>
+            <div class="rev-amt tnum">$ {{ tx.amount|money:0 }}</div>
+          </div>
+
+          <form hx-post="{% url 'dashboard:statement_charge_update' tx.id %}"
+                hx-target="#statement-body" hx-swap="innerHTML">
+            <div class="two-col">
+              <div class="field">
+                <label>Categoría</label>
+                <select name="category" aria-label="Categoría">
+                  <option value="">Sin categoría</option>
+                  {% for c in categories %}
+                    <option value="{{ c.id }}" {% if tx.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="field">
+                <label>Mi parte</label>
+                <select name="share" aria-label="Qué parte es tuya">
+                  <option value="1.000" {% if tx.shared_ratio|floatformat:3 == "1.000" %}selected{% endif %}>Todo mío</option>
+                  <option value="0.500" {% if tx.shared_ratio|floatformat:3 == "0.500" %}selected{% endif %}>Mitad (50%)</option>
+                  <option value="0.333" {% if tx.shared_ratio|floatformat:3 == "0.333" %}selected{% endif %}>Un tercio (33%)</option>
+                </select>
+              </div>
+            </div>
+            <div class="rev-actions">
+              <button class="btn btn-primary" type="submit">{% icon "check" "icon" %} Guardar</button>
+              <button class="icon-btn danger" type="button"
+                      hx-post="{% url 'dashboard:statement_charge_delete' tx.id %}"
+                      hx-target="#statement-body" hx-swap="innerHTML"
+                      hx-confirm="¿Borrar este consumo?" aria-label="Borrar">{% icon "trash-2" "icon" %}</button>
+            </div>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="empty">
+      <span class="big">{% icon "credit-card" "icon-lg" %}</span>
+      Este resumen no tiene consumos en {{ period_label }}.
+    </div>
+  {% endif %}
+</div>

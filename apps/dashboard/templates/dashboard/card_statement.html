@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% load money icons %}
+{% block title %}{{ wallet.name }} — {{ period_label }}{% endblock %}
+
+{% block content %}
+  <div class="monthbar">
+    <a class="nav" href="{% url 'dashboard:month' period %}" aria-label="Volver">{% icon "chevron-right" "icon flip" %}</a>
+    <div class="label">{{ wallet.name }}<small>resumen · {{ period_label }}</small></div>
+    <span class="nav" style="visibility:hidden"></span>
+  </div>
+
+  <div id="statement-body">
+    {% include "dashboard/_statement_body.html" %}
+  </div>
+{% endblock %}

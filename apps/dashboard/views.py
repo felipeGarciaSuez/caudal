@@ -13,7 +13,7 @@ from apps.budgets.services import ensure_month_fixed
 from apps.savings.services import saved_ars
 from apps.transactions.forms import MonthlyIncomeForm, QuickTransactionForm
 from apps.transactions.models import Category, Transaction
-from apps.wallets.models import Wallet
+from apps.wallets.models import CardStatement, Wallet
 
 PERIOD_FMT = "%Y-%m"
 
@@ -78,8 +78,9 @@ def _ant_total(user, period: str) -> Decimal:
         period=period,
         kind=Transaction.Kind.EXPENSE,
         category__kind=Category.Kind.ANT,
-        needs_review=False,
-    ).aggregate(total=Sum(F("amount") * F("shared_ratio")))["total"] or Decimal("0")
+    ).exclude(wallet__kind=Wallet.Kind.CREDIT_CARD).aggregate(
+        total=Sum(F("amount") * F("shared_ratio"))
+    )["total"] or Decimal("0")
     return Decimal(total).quantize(Decimal("0.01"))
 
 
@@ -121,13 +122,13 @@ def _group_checklist(fixed_rows: list) -> list[dict]:
 def _month_context(user, period: str) -> dict:
     budget = _get_or_build_budget(user, period)
     own = F("amount") * F("shared_ratio")  # the part that's actually mine
-    # needs_review rows (unconfirmed card items) stay out of the month until reviewed.
-    expenses = Transaction.objects.filter(
-        owner=user,
-        period=period,
-        kind=Transaction.Kind.EXPENSE,
-        needs_review=False,
+    all_expenses = Transaction.objects.filter(
+        owner=user, period=period, kind=Transaction.Kind.EXPENSE
     )
+    # Credit-card charges become their own statement rows below, so keep them out
+    # of the normal flows (checklist / big / hormiga).
+    is_card = Q(wallet__kind=Wallet.Kind.CREDIT_CARD)
+    expenses = all_expenses.exclude(is_card)
 
     # The star: the big-expenses checklist (Excel-style "did I pay everything?").
     fixed_rows = list(
@@ -198,7 +199,37 @@ def _month_context(user, period: str) -> dict:
 
     q2 = Decimal("0.01")
     big_total = sum((r["total"] for r in big_rows), zero).quantize(q2)
-    grandes_total = fixed_total + big_total
+
+    # Credit-card statements: one tickable "gasto grande" per card, built from the
+    # card charges pulled out above. Counts toward the month regardless of paid.
+    card_txs = list(all_expenses.filter(is_card).select_related("wallet"))
+    paid_map = dict(
+        CardStatement.objects.filter(owner=user, period=period).values_list("wallet_id", "is_paid")
+    )
+    card_by_wallet: dict[int, list] = {}
+    card_order: list[int] = []
+    for tx in card_txs:
+        if tx.wallet_id not in card_by_wallet:
+            card_by_wallet[tx.wallet_id] = []
+            card_order.append(tx.wallet_id)
+        card_by_wallet[tx.wallet_id].append(tx)
+    statement_rows = []
+    for wallet_id in card_order:
+        txs = card_by_wallet[wallet_id]
+        statement_rows.append(
+            {
+                "wallet": txs[0].wallet,
+                "wallet_id": wallet_id,
+                "total": sum((t.own_amount for t in txs), zero).quantize(q2),
+                "count": len(txs),
+                "unreviewed": sum(1 for t in txs if t.needs_review),
+                "is_paid": paid_map.get(wallet_id, False),
+            }
+        )
+    statement_rows.sort(key=lambda r: r["total"], reverse=True)
+    statements_total = sum((r["total"] for r in statement_rows), zero)
+
+    grandes_total = fixed_total + big_total + statements_total
     ant_total = sum((r["total"] for r in ant_rows), zero).quantize(q2)
 
     total_spent = grandes_total + ant_total
@@ -233,6 +264,7 @@ def _month_context(user, period: str) -> dict:
         "fixed_all_paid": len(fixed_rows) > 0 and paid_count == len(fixed_rows),
         # big aggregated (imported fixed + variable) and the grandes grand total
         "big_total": big_total,
+        "statements_total": statements_total,
         "grandes_total": grandes_total,
         # hormiga (retrospectivo)
         "ant": ant_total,
@@ -250,8 +282,8 @@ def _month_context(user, period: str) -> dict:
         "fixed_rows": fixed_rows,
         "fixed_groups": _group_checklist(fixed_rows),
         "big_rows": big_rows,
+        "statement_rows": statement_rows,
         "ant_rows": ant_rows,
-        "review_count": Transaction.objects.filter(owner=user, needs_review=True).count(),
         "budget": budget,
         "m": metrics,
         "default_date": _default_date_for(period),
@@ -432,3 +464,96 @@ def set_income(request, period):
     )
     context = _month_context(request.user, period)
     return render(request, "dashboard/_month_body.html", context)
+
+
+# --- Resumen de tarjeta (gasto grande desglosable) ---------------------------
+
+
+def _statement_context(user, wallet, period: str) -> dict:
+    rows = list(
+        Transaction.objects.filter(
+            owner=user, wallet=wallet, period=period, kind=Transaction.Kind.EXPENSE
+        )
+        .select_related("category")
+        .order_by("needs_review", "-date", "-id")
+    )
+    total = sum((t.own_amount for t in rows), Decimal("0.00")).quantize(Decimal("0.01"))
+    statement = CardStatement.objects.filter(owner=user, wallet=wallet, period=period).first()
+    return {
+        "wallet": wallet,
+        "period": period,
+        "period_label": _period_label(period),
+        "rows": rows,
+        "total": total,
+        "count": len(rows),
+        "unreviewed": sum(1 for t in rows if t.needs_review),
+        "is_paid": statement.is_paid if statement else False,
+        "categories": Category.objects.filter(owner=user, children__isnull=True).order_by(
+            "kind", "name"
+        ),
+        "nav_active": "month",
+    }
+
+
+def _get_card_wallet(user, wallet_id):
+    return get_object_or_404(Wallet, pk=wallet_id, owner=user, kind=Wallet.Kind.CREDIT_CARD)
+
+
+@login_required
+def card_statement_detail(request, wallet_id, period):
+    wallet = _get_card_wallet(request.user, wallet_id)
+    context = _statement_context(request.user, wallet, period)
+    return render(request, "dashboard/card_statement.html", context)
+
+
+@login_required
+@require_POST
+def toggle_statement_paid(request, wallet_id, period):
+    wallet = _get_card_wallet(request.user, wallet_id)
+    statement, _ = CardStatement.objects.get_or_create(
+        owner=request.user, wallet=wallet, period=period
+    )
+    statement.is_paid = not statement.is_paid
+    statement.save(update_fields=["is_paid"])
+    if request.POST.get("scope") == "statement":
+        return render(
+            request,
+            "dashboard/_statement_body.html",
+            _statement_context(request.user, wallet, period),
+        )
+    return render(request, "dashboard/_month_body.html", _month_context(request.user, period))
+
+
+@login_required
+@require_POST
+def statement_charge_update(request, tx_id):
+    """Set category + 'mi parte' on one card charge, from the statement detail."""
+    tx = get_object_or_404(
+        Transaction, pk=tx_id, owner=request.user, wallet__kind=Wallet.Kind.CREDIT_CARD
+    )
+    cat_id = request.POST.get("category")
+    tx.category = Category.objects.filter(owner=request.user, pk=cat_id).first() if cat_id else None
+    try:
+        ratio = Decimal((request.POST.get("share") or "1").replace(",", "."))
+    except InvalidOperation:
+        ratio = Decimal("1")
+    ratio = min(max(ratio, Decimal("0")), Decimal("1"))
+    tx.shared_ratio = ratio
+    tx.is_shared = ratio < 1
+    tx.needs_review = False  # confirmed
+    tx.save()
+    context = _statement_context(request.user, tx.wallet, tx.period)
+    return render(request, "dashboard/_statement_body.html", context)
+
+
+@login_required
+@require_POST
+def statement_charge_delete(request, tx_id):
+    tx = get_object_or_404(
+        Transaction, pk=tx_id, owner=request.user, wallet__kind=Wallet.Kind.CREDIT_CARD
+    )
+    wallet, period = tx.wallet, tx.period
+    tx.delete()
+    return render(
+        request, "dashboard/_statement_body.html", _statement_context(request.user, wallet, period)
+    )

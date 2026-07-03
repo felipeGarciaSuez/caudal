@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from apps.budgets.models import MonthlyBudget
 from apps.transactions.models import Category, Transaction
-from apps.wallets.models import Wallet
+from apps.wallets.models import CardStatement, Wallet
 
 pytestmark = pytest.mark.django_db
 
@@ -623,3 +623,107 @@ def test_settings_hub_renders(client_logged):
     assert "Ajustes" in body
     assert reverse("imports:rules") in body
     assert reverse("wallets:wallets") in body
+
+
+# --- Resumen de tarjeta (gasto grande desglosable) -------------------------
+
+
+def _card(user, name="ICBC Visa"):
+    return Wallet.objects.create(owner=user, name=name, kind=Wallet.Kind.CREDIT_CARD)
+
+
+def _card_charge(user, card, amount, period="2026-06", **kw):
+    return Transaction.objects.create(
+        owner=user,
+        wallet=card,
+        amount=Decimal(amount),
+        kind=Transaction.Kind.EXPENSE,
+        date=f"{period}-10",
+        needs_review=kw.pop("needs_review", True),
+        **kw,
+    )
+
+
+def test_card_charges_grouped_into_statement_not_big_rows(client_logged, user):
+    card = _card(user)
+    _card_charge(user, card, "12000")
+    _card_charge(user, card, "8000")
+    resp = client_logged.get(reverse("dashboard:month", args=["2026-06"]))
+    statements = resp.context["statement_rows"]
+    assert len(statements) == 1
+    assert statements[0]["wallet"] == card
+    assert statements[0]["count"] == 2
+    assert statements[0]["total"] == Decimal("20000.00")
+    # Card charges must not leak into the per-category big rows.
+    assert resp.context["big_rows"] == []
+    assert resp.context["m"]["statements_total"] == Decimal("20000.00")
+
+
+def test_statement_counts_in_resto_even_if_unpaid(client_logged, user):
+    MonthlyBudget.objects.create(owner=user, period="2026-06", expected_income=Decimal("100000"))
+    card = _card(user)
+    _card_charge(user, card, "30000")
+    resp = client_logged.get(reverse("dashboard:month", args=["2026-06"]))
+    m = resp.context["m"]
+    assert m["total_spent"] == Decimal("30000.00")
+    assert m["remaining"] == Decimal("70000.00")  # counts although statement unpaid
+
+
+def test_toggle_statement_paid_persists(client_logged, user):
+    card = _card(user)
+    _card_charge(user, card, "5000")
+    resp = client_logged.post(
+        reverse("dashboard:toggle_statement_paid", args=[card.id, "2026-06"]),
+        {"scope": "month"},
+    )
+    assert resp.status_code == 200
+    st = CardStatement.objects.get(owner=user, wallet=card, period="2026-06")
+    assert st.is_paid is True
+    # toggling again flips back
+    client_logged.post(reverse("dashboard:toggle_statement_paid", args=[card.id, "2026-06"]))
+    st.refresh_from_db()
+    assert st.is_paid is False
+
+
+def test_statement_charge_update_sets_category_and_share(client_logged, user):
+    card = _card(user)
+    tx = _card_charge(user, card, "10000")
+    cat = Category.objects.create(owner=user, name="Súper", kind=Category.Kind.VARIABLE)
+    resp = client_logged.post(
+        reverse("dashboard:statement_charge_update", args=[tx.id]),
+        {"category": cat.id, "share": "0.500"},
+    )
+    assert resp.status_code == 200
+    tx.refresh_from_db()
+    assert tx.category == cat
+    assert tx.shared_ratio == Decimal("0.500")
+    assert tx.is_shared is True
+    assert tx.needs_review is False
+    assert tx.own_amount == Decimal("5000.00")
+
+
+def test_statement_charge_delete(client_logged, user):
+    card = _card(user)
+    tx = _card_charge(user, card, "10000")
+    resp = client_logged.post(reverse("dashboard:statement_charge_delete", args=[tx.id]))
+    assert resp.status_code == 200
+    assert not Transaction.objects.filter(pk=tx.id).exists()
+
+
+def test_statement_detail_renders_and_lists_charges(client_logged, user):
+    card = _card(user)
+    _card_charge(user, card, "10000", description="ANTHROPIC")
+    resp = client_logged.get(reverse("dashboard:card_statement", args=[card.id, "2026-06"]))
+    assert resp.status_code == 200
+    body = resp.content.decode()
+    assert "ICBC Visa" in body
+    assert "ANTHROPIC" in body
+
+
+def test_cannot_touch_other_users_statement_charge(client_logged, django_user_model):
+    other = django_user_model.objects.create_user(username="otro", password="x")
+    ocard = _card(other)
+    tx = _card_charge(other, ocard, "500")
+    resp = client_logged.post(reverse("dashboard:statement_charge_delete", args=[tx.id]))
+    assert resp.status_code == 404
+    assert Transaction.objects.filter(pk=tx.id).exists()

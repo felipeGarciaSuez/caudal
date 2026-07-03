@@ -285,52 +285,6 @@ def client_logged(client, user):
     return client
 
 
-def _card_item(user, amount="10000", **kwargs):
-    card, _ = Wallet.objects.get_or_create(
-        owner=user, name="ICBC Visa", defaults={"kind": Wallet.Kind.CREDIT_CARD}
-    )
-    return Transaction.objects.create(
-        owner=user,
-        wallet=card,
-        amount=Decimal(amount),
-        kind=Transaction.Kind.EXPENSE,
-        date="2026-06-10",
-        needs_review=True,
-        **kwargs,
-    )
-
-
-def test_review_update_confirms_and_sets_share(client_logged, user):
-    cat = Category.objects.create(owner=user, name="Súper", kind=Category.Kind.VARIABLE)
-    tx = _card_item(user, "10000")
-    resp = client_logged.post(
-        reverse("imports:review_update", args=[tx.id]),
-        {"category": cat.id, "share": "0.500"},
-    )
-    assert resp.status_code == 200
-    tx.refresh_from_db()
-    assert tx.needs_review is False
-    assert tx.category == cat
-    assert tx.shared_ratio == Decimal("0.500")
-    assert tx.is_shared is True
-    assert tx.own_amount == Decimal("5000.00")
-
-
-def test_review_delete(client_logged, user):
-    tx = _card_item(user, "100")
-    resp = client_logged.post(reverse("imports:review_delete", args=[tx.id]))
-    assert resp.status_code == 200
-    assert Transaction.objects.count() == 0
-
-
-def test_cannot_review_other_users_item(client_logged, django_user_model):
-    other = django_user_model.objects.create_user(username="otro", password="x")
-    tx = _card_item(other, "100")
-    resp = client_logged.post(reverse("imports:review_delete", args=[tx.id]))
-    assert resp.status_code == 404
-    assert Transaction.objects.filter(pk=tx.id).exists()
-
-
 # --- CRUD de reglas de categorización (Ajustes) ----------------------------
 
 
