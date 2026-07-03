@@ -1,6 +1,4 @@
 {% load money icons %}
-{# Inline edit form for one movement. Expects: tx, wallets, edit_categories,
-   period, scope, category_id, edit_target (the HTMX target to re-render). #}
 <form class="save-form tx-edit" hx-post="{% url 'dashboard:edit_transaction' tx.id %}"
       hx-target="{{ edit_target }}" hx-swap="innerHTML"
       @htmx:after-request="if ($event.detail.successful) edit = false">

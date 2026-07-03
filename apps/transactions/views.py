@@ -30,7 +30,7 @@ def _categories_context(user, **extra) -> dict:
         "parent_options": Category.objects.filter(owner=user, parent__isnull=True).order_by("name"),
         "kinds": Category.Kind.choices,
         "icon_choices": ICON_CHOICES,
-        "nav_active": "month",
+        "nav_active": "settings",
         "add_href": reverse("dashboard:month", args=[_current_period()]) + "#add-card",
     }
     ctx.update(extra)

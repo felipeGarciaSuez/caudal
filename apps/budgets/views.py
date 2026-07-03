@@ -41,7 +41,7 @@ def _fixed_context(user, **extra) -> dict:
             owner=user, kind=Category.Kind.FIXED, children__isnull=True
         ).order_by("name"),
         "wallets": Wallet.objects.filter(owner=user, is_active=True),
-        "nav_active": "month",
+        "nav_active": "settings",
         # The '+' FAB adds a loose expense on the current month page.
         "add_href": reverse("dashboard:month", args=[_current_period()]) + "#add-card",
     }

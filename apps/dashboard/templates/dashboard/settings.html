@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% load icons %}
+{% block title %}Caudal — Ajustes{% endblock %}
+
+{% block content %}
+  <header class="topbar">
+    <div class="wordmark-sm">{% icon "wallet" "icon" %} Caudal</div>
+    <form method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button class="icon-btn" type="submit" aria-label="Cerrar sesión">{% icon "log-out" "icon" %}</button>
+    </form>
+  </header>
+
+  <div class="monthbar">
+    <a class="nav" href="{% url 'dashboard:home' %}" aria-label="Volver al mes">{% icon "chevron-right" "icon flip" %}</a>
+    <div class="label">
+      Ajustes
+      <small>billeteras, categorías y reglas</small>
+    </div>
+    <span class="nav" style="visibility:hidden">{% icon "chevron-right" "icon" %}</span>
+  </div>
+
+  <div class="card">
+    <div class="section-title"><span>Configuración</span></div>
+    <a class="config-link" href="{% url 'wallets:wallets' %}">
+      {% icon "wallet" "icon" %} Billeteras {% icon "chevron-right" "icon" %}
+    </a>
+    <a class="config-link" href="{% url 'transactions:categories' %}">
+      {% icon "tag" "icon" %} Categorías {% icon "chevron-right" "icon" %}
+    </a>
+    <a class="config-link" href="{% url 'imports:rules' %}">
+      {% icon "layout-grid" "icon" %} Reglas de categorización {% icon "chevron-right" "icon" %}
+    </a>
+    <a class="config-link" href="{% url 'budgets:fixed' %}">
+      {% icon "repeat" "icon" %} Gastos fijos {% icon "chevron-right" "icon" %}
+    </a>
+  </div>
+
+  <p class="hint muted" style="padding:0 .2rem">
+    Las <b>reglas</b> categorizan solas los movimientos al importar: si la descripción contiene
+    una palabra clave (ej. "RAPPI" → Delivery), se asigna esa categoría.
+  </p>
+{% endblock %}

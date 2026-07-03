@@ -275,6 +275,12 @@ def home(request):
 
 
 @login_required
+def settings_home(request):
+    """Hub of configuration screens: wallets, categories, rules, fixed expenses."""
+    return render(request, "dashboard/settings.html", {"nav_active": "settings"})
+
+
+@login_required
 def month_view(request, period):
     # Auto-generate this month's fixed expenses (pending) for the current month
     # onwards, so the checklist is always there without extra taps.

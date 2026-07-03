@@ -117,8 +117,12 @@ def test_delete_wallet_with_movements_is_blocked(client_logged, user):
     w = Wallet.objects.create(owner=user, name="ICBC", kind=Wallet.Kind.BANK)
     cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
     Transaction.objects.create(
-        owner=user, wallet=w, category=cat, amount=Decimal("1000"),
-        kind=Transaction.Kind.EXPENSE, date=date(2026, 6, 1),
+        owner=user,
+        wallet=w,
+        category=cat,
+        amount=Decimal("1000"),
+        kind=Transaction.Kind.EXPENSE,
+        date=date(2026, 6, 1),
     )
     resp = client_logged.post(reverse("wallets:delete_wallet", args=[w.id]))
     assert resp.status_code == 400
