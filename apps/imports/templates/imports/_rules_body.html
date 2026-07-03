@@ -1,0 +1,117 @@
+{% load icons %}
+
+{% if just_saved %}
+  <div class="flash">{% icon "check" "icon" %} Guardado.</div>
+{% endif %}
+{% if form_error %}
+  <div class="flash err">{{ form_error }}</div>
+{% endif %}
+
+{# ---------- LISTA DE REGLAS ---------- #}
+<div class="card">
+  <div class="section-title">
+    <span>Tus reglas</span>
+    {% if active_count %}<span class="badge">{{ active_count }} activa{{ active_count|pluralize }}</span>{% endif %}
+  </div>
+
+  {% if rules %}
+    <ul class="fx-list">
+      {% for r in rules %}
+        <li class="fx-row {% if not r.is_active %}pending{% endif %}" x-data="{ edit: false }">
+          <button class="paid-toggle {% if r.is_active %}paid{% endif %}"
+                  hx-post="{% url 'imports:toggle_rule' r.id %}"
+                  hx-target="#rules-body" hx-swap="innerHTML"
+                  aria-label="{% if r.is_active %}Activa (tocar para pausar){% else %}Pausada (tocar para activar){% endif %}">{% icon "check" "icon" %}</button>
+          <button type="button" class="fx-main" @click="edit = !edit" style="text-align:left;background:none;border:0;padding:0;cursor:pointer;color:inherit">
+            <div class="fx-name">"{{ r.keyword }}" {% icon "chevron-right" "icon" %} {{ r.category.name }}</div>
+            <div class="fx-where">
+              prioridad {{ r.priority }}
+              {% if not r.is_active %} · <span class="pending-tag">pausada</span>{% endif %}
+            </div>
+          </button>
+          <button type="button" class="icon-btn" @click="edit = !edit" aria-label="Editar">{% icon "pencil" "icon" %}</button>
+
+          <div x-show="edit" x-cloak class="fx-edit" style="flex-basis:100%;margin-top:.8rem">
+            <form class="save-form" hx-post="{% url 'imports:update_rule' r.id %}"
+                  hx-target="#rules-body" hx-swap="innerHTML">
+              <div class="field">
+                <label>Palabra clave</label>
+                <input type="text" name="keyword" value="{{ r.keyword }}" required aria-label="Palabra clave">
+              </div>
+              <div class="two-col">
+                <div class="field">
+                  <label>Categoría</label>
+                  <select name="category" aria-label="Categoría">
+                    {% for c in categories %}
+                      <option value="{{ c.id }}" {% if c.id == r.category_id %}selected{% endif %}>{{ c.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Prioridad</label>
+                  <input type="number" name="priority" inputmode="numeric" value="{{ r.priority }}" aria-label="Prioridad">
+                </div>
+              </div>
+              <div class="two-col">
+                <button class="btn btn-primary" type="submit">Guardar cambios</button>
+                <button class="btn danger" type="button"
+                        hx-post="{% url 'imports:delete_rule' r.id %}"
+                        hx-target="#rules-body" hx-swap="innerHTML"
+                        hx-confirm="¿Borrar esta regla?">
+                  {% icon "trash-2" "icon" %} Borrar
+                </button>
+              </div>
+            </form>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+    <p class="hint muted" style="margin-top:.8rem">
+      Se evalúan de menor a mayor prioridad; la primera que matchea gana. Lo que no matchea queda
+      sin categoría para revisar.
+    </p>
+  {% else %}
+    <div class="empty">
+      <span class="big">{% icon "layout-grid" "icon-lg" %}</span>
+      Todavía no tenés reglas.<br>
+      Creá la primera abajo (ej. "RAPPI" → Delivery).
+    </div>
+  {% endif %}
+</div>
+
+{# ---------- ALTA DE UNA REGLA ---------- #}
+<div class="card" x-data="{ open: {% if not rules %}true{% else %}false{% endif %} }">
+  <button type="button" class="collapse-head" @click="open = !open">
+    <span>{% icon "plus" "icon" %} Agregar una regla</span>
+    <span class="chev" :class="{ 'rot': open }">{% icon "chevron-right" "icon" %}</span>
+  </button>
+  <div x-show="open" x-cloak style="margin-top:.9rem">
+    {% if categories %}
+      <form class="save-form" hx-post="{% url 'imports:add_rule' %}"
+            hx-target="#rules-body" hx-swap="innerHTML"
+            @htmx:after-request="if ($event.detail.successful) $el.reset()">
+        <div class="field">
+          <label>Palabra clave</label>
+          <input type="text" name="keyword" placeholder="RAPPI, YPF, NETFLIX…" required aria-label="Palabra clave">
+        </div>
+        <div class="two-col">
+          <div class="field">
+            <label>Categoría</label>
+            <select name="category" aria-label="Categoría">
+              {% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Prioridad</label>
+            <input type="number" name="priority" inputmode="numeric" value="100" aria-label="Prioridad">
+          </div>
+        </div>
+        <button class="btn btn-primary" type="submit" style="width:100%">Guardar regla</button>
+      </form>
+    {% else %}
+      <p class="muted" style="font-size:.85rem">
+        Primero creá alguna categoría en <a href="{% url 'transactions:categories' %}">Categorías</a>.
+      </p>
+    {% endif %}
+  </div>
+</div>

@@ -220,7 +220,7 @@ a.chev { text-decoration: none; display: inline-grid; place-items: center; }
   border-top: 1px solid var(--line);
 }
 .tabbar a { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--faint);
-  font-size: .66rem; font-weight: 700; padding: .3rem .9rem; border-radius: 12px; }
+  font-size: .66rem; font-weight: 700; padding: .3rem .55rem; border-radius: 12px; }
 .tabbar a .icon { width: 24px; height: 24px; }
 .tabbar a.active { color: var(--brand); }
 .tabbar a.add { margin-top: -1.7rem; width: 56px; height: 56px; border-radius: 50%;

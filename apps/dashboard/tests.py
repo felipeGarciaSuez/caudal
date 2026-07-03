@@ -614,3 +614,12 @@ def test_delete_from_detail_rerenders_detail_body(client_logged, user, wallet):
     assert resp.status_code == 200
     assert not Transaction.objects.filter(pk=tx.id).exists()
     assert "Total Super" in resp.content.decode()  # detail body re-rendered
+
+
+def test_settings_hub_renders(client_logged):
+    resp = client_logged.get(reverse("dashboard:settings"))
+    assert resp.status_code == 200
+    body = resp.content.decode()
+    assert "Ajustes" in body
+    assert reverse("imports:rules") in body
+    assert reverse("wallets:wallets") in body

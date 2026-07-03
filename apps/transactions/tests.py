@@ -128,8 +128,12 @@ def test_group_cannot_be_nested(client_logged, user):
 def test_delete_category_sets_transactions_null(client_logged, user, wallet):
     c = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
     tx = Transaction.objects.create(
-        owner=user, wallet=wallet, category=c, amount=Decimal("1000"),
-        kind=Transaction.Kind.EXPENSE, date=date(2026, 6, 1),
+        owner=user,
+        wallet=wallet,
+        category=c,
+        amount=Decimal("1000"),
+        kind=Transaction.Kind.EXPENSE,
+        date=date(2026, 6, 1),
     )
     resp = client_logged.post(reverse("transactions:delete_category", args=[c.id]))
     assert resp.status_code == 200
@@ -140,7 +144,11 @@ def test_delete_category_sets_transactions_null(client_logged, user, wallet):
 def test_delete_category_blocked_when_used_by_recurring(client_logged, user, wallet):
     c = Category.objects.create(owner=user, name="Alquiler", kind=Category.Kind.FIXED)
     RecurringExpense.objects.create(
-        owner=user, name="Alquiler", default_amount=Decimal("1"), category=c, wallet=wallet,
+        owner=user,
+        name="Alquiler",
+        default_amount=Decimal("1"),
+        category=c,
+        wallet=wallet,
     )
     resp = client_logged.post(reverse("transactions:delete_category", args=[c.id]))
     assert resp.status_code == 400

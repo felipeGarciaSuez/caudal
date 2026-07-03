@@ -19,7 +19,7 @@ def _wallets_context(user, **extra) -> dict:
         "active_count": sum(1 for w in wallets if w.is_active),
         "kinds": Wallet.Kind.choices,
         "credit_kind": Wallet.Kind.CREDIT_CARD,
-        "nav_active": "month",
+        "nav_active": "settings",
         "add_href": reverse("dashboard:month", args=[_current_period()]) + "#add-card",
     }
     ctx.update(extra)

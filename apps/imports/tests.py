@@ -329,3 +329,61 @@ def test_cannot_review_other_users_item(client_logged, django_user_model):
     resp = client_logged.post(reverse("imports:review_delete", args=[tx.id]))
     assert resp.status_code == 404
     assert Transaction.objects.filter(pk=tx.id).exists()
+
+
+# --- CRUD de reglas de categorización (Ajustes) ----------------------------
+
+
+def test_rules_home_renders(client_logged, user):
+    resp = client_logged.get(reverse("imports:rules"))
+    assert resp.status_code == 200
+    assert "Reglas" in resp.content.decode()
+
+
+def test_add_rule_creates(client_logged, user):
+    cat = Category.objects.create(owner=user, name="Delivery", kind=Category.Kind.ANT)
+    resp = client_logged.post(
+        reverse("imports:add_rule"),
+        {"keyword": "RAPPI", "category": cat.id, "priority": "50"},
+    )
+    assert resp.status_code == 200
+    rule = CategoryRule.objects.get(owner=user)
+    assert rule.keyword == "RAPPI"
+    assert rule.category == cat
+    assert rule.priority == 50
+    assert rule.is_active is True
+
+
+def test_add_rule_requires_category(client_logged, user):
+    resp = client_logged.post(reverse("imports:add_rule"), {"keyword": "RAPPI", "category": ""})
+    assert resp.status_code == 400
+    assert CategoryRule.objects.count() == 0
+
+
+def test_update_toggle_and_delete_rule(client_logged, user):
+    cat = Category.objects.create(owner=user, name="Delivery", kind=Category.Kind.ANT)
+    rule = CategoryRule.objects.create(owner=user, keyword="RAPPI", category=cat)
+    # update
+    client_logged.post(
+        reverse("imports:update_rule", args=[rule.id]),
+        {"keyword": "PEDIDOSYA", "category": cat.id, "priority": "10"},
+    )
+    rule.refresh_from_db()
+    assert rule.keyword == "PEDIDOSYA"
+    assert rule.priority == 10
+    # toggle
+    client_logged.post(reverse("imports:toggle_rule", args=[rule.id]))
+    rule.refresh_from_db()
+    assert rule.is_active is False
+    # delete
+    client_logged.post(reverse("imports:delete_rule", args=[rule.id]))
+    assert not CategoryRule.objects.filter(pk=rule.id).exists()
+
+
+def test_cannot_touch_other_users_rule(client_logged, django_user_model):
+    other = django_user_model.objects.create_user(username="otro", password="x")
+    cat = Category.objects.create(owner=other, name="X", kind=Category.Kind.ANT)
+    rule = CategoryRule.objects.create(owner=other, keyword="X", category=cat)
+    resp = client_logged.post(reverse("imports:delete_rule", args=[rule.id]))
+    assert resp.status_code == 404
+    assert CategoryRule.objects.filter(pk=rule.id).exists()

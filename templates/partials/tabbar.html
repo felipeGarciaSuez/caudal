@@ -13,4 +13,7 @@
   <a href="{% url 'imports:import' %}" class="{% if nav_active == 'import' %}active{% endif %}">
     {% icon "download" "icon" %}<span>Importar</span>
   </a>
+  <a href="{% url 'dashboard:settings' %}" class="{% if nav_active == 'settings' %}active{% endif %}">
+    {% icon "settings" "icon" %}<span>Ajustes</span>
+  </a>
 </nav>
