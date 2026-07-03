@@ -44,3 +44,38 @@ class Wallet(models.Model):
     @property
     def is_credit_card(self) -> bool:
         return self.kind == self.Kind.CREDIT_CARD
+
+
+class CardStatement(models.Model):
+    """Paid/pending state of a credit-card statement for a month.
+
+    A credit card is one payment per month (the statement) made of many charges.
+    The charges stay as normal Transactions on the card wallet; this only tracks
+    whether the whole statement was paid, so it can be ticked like a fixed expense.
+    Created lazily the first time the statement is toggled.
+    """
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="card_statements",
+    )
+    wallet = models.ForeignKey(
+        "wallets.Wallet",
+        on_delete=models.CASCADE,
+        related_name="statements",
+    )
+    period = models.CharField("período", max_length=7, db_index=True)  # YYYY-MM
+    is_paid = models.BooleanField("pagado", default=False)
+
+    class Meta:
+        verbose_name = "resumen de tarjeta"
+        verbose_name_plural = "resúmenes de tarjeta"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["wallet", "period"], name="unique_statement_per_wallet_period"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.wallet.name} {self.period} ({'pagado' if self.is_paid else 'pendiente'})"

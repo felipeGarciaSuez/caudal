@@ -1,12 +1,10 @@
-from decimal import Decimal, InvalidOperation
-
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from apps.transactions.models import Category, Transaction
+from apps.transactions.models import Category
 
 from .forms import ImportUploadForm
 from .models import CategoryRule, ImportBatch
@@ -17,10 +15,6 @@ def _add_href() -> str:
     """Link for the '+' FAB: current month's manual-add form."""
     period = timezone.localdate().strftime("%Y-%m")
     return reverse("dashboard:month", args=[period]) + "#add-card"
-
-
-def _review_count(user) -> int:
-    return Transaction.objects.filter(owner=user, needs_review=True).count()
 
 
 @login_required
@@ -55,60 +49,8 @@ def import_view(request):
             "recent": recent,
             "nav_active": "import",
             "add_href": _add_href(),
-            "review_count": _review_count(request.user),
         },
     )
-
-
-def _review_context(user) -> dict:
-    rows = (
-        Transaction.objects.filter(owner=user, needs_review=True)
-        .select_related("wallet", "category")
-        .order_by("-date", "-id")
-    )
-    return {
-        "rows": rows,
-        "categories": Category.objects.filter(owner=user).order_by("kind", "name"),
-        "review_count": rows.count(),
-        "nav_active": "import",
-        "add_href": _add_href(),
-    }
-
-
-@login_required
-def review_view(request):
-    """Confirm imported card items (category / shared split) before they count."""
-    return render(request, "imports/review.html", _review_context(request.user))
-
-
-@login_required
-@require_POST
-def review_update(request, tx_id):
-    tx = get_object_or_404(Transaction, pk=tx_id, owner=request.user, needs_review=True)
-    if tx.kind == Transaction.Kind.EXPENSE:
-        cat_id = request.POST.get("category")
-        tx.category = (
-            Category.objects.filter(owner=request.user, pk=cat_id).first() if cat_id else None
-        )
-    # "Mi parte": 1.000 = todo mío; <1 = compartido.
-    try:
-        ratio = Decimal((request.POST.get("share") or "1").replace(",", "."))
-    except InvalidOperation:
-        ratio = Decimal("1")
-    ratio = min(max(ratio, Decimal("0")), Decimal("1"))
-    tx.shared_ratio = ratio
-    tx.is_shared = ratio < 1
-    tx.needs_review = False
-    tx.save()
-    return render(request, "imports/_review_body.html", _review_context(request.user))
-
-
-@login_required
-@require_POST
-def review_delete(request, tx_id):
-    tx = get_object_or_404(Transaction, pk=tx_id, owner=request.user, needs_review=True)
-    tx.delete()
-    return render(request, "imports/_review_body.html", _review_context(request.user))
 
 
 # --- Reglas de categorización (auto-categorización al importar) ---------------

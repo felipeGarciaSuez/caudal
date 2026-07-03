@@ -19,4 +19,24 @@ urlpatterns = [
     path("tx/<int:tx_id>/amount/", views.update_amount, name="update_amount"),
     path("tx/<int:tx_id>/edit/", views.edit_transaction, name="edit_transaction"),
     path("tx/<int:tx_id>/delete/", views.delete_transaction, name="delete_transaction"),
+    path(
+        "statement/<int:wallet_id>/<str:period>/",
+        views.card_statement_detail,
+        name="card_statement",
+    ),
+    path(
+        "statement/<int:wallet_id>/<str:period>/toggle/",
+        views.toggle_statement_paid,
+        name="toggle_statement_paid",
+    ),
+    path(
+        "statement/charge/<int:tx_id>/",
+        views.statement_charge_update,
+        name="statement_charge_update",
+    ),
+    path(
+        "statement/charge/<int:tx_id>/delete/",
+        views.statement_charge_delete,
+        name="statement_charge_delete",
+    ),
 ]
