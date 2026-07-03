@@ -316,14 +316,6 @@ def test_review_update_confirms_and_sets_share(client_logged, user):
     assert tx.own_amount == Decimal("5000.00")
 
 
-def test_review_confirm_all(client_logged, user):
-    for _ in range(3):
-        _card_item(user, "100")
-    resp = client_logged.post(reverse("imports:review_confirm_all"))
-    assert resp.status_code == 200
-    assert Transaction.objects.filter(owner=user, needs_review=True).count() == 0
-
-
 def test_review_delete(client_logged, user):
     tx = _card_item(user, "100")
     resp = client_logged.post(reverse("imports:review_delete", args=[tx.id]))

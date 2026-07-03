@@ -4,13 +4,10 @@
   <div class="card">
     <div class="section-title">
       <span>{{ review_count }} movimiento{{ review_count|pluralize }} para revisar</span>
-      <button class="badge" hx-post="{% url 'imports:review_confirm_all' %}"
-              hx-target="#review-body" hx-swap="innerHTML"
-              hx-confirm="¿Confirmar todos tal cual están?">Confirmar todos</button>
     </div>
     <p class="muted" style="font-size:.78rem;margin-top:-.3rem">
-      El resumen de tarjeta no se toma a rajatabla: confirmá categoría y qué parte es tuya.
-      Estos no cuentan en el mes hasta que los confirmes.
+      El resumen de tarjeta no se toma a rajatabla: confirmá categoría y qué parte es tuya en cada
+      uno. Estos no cuentan en el mes hasta que los confirmes.
     </p>
   </div>
 

@@ -109,10 +109,3 @@ def review_delete(request, tx_id):
     tx = get_object_or_404(Transaction, pk=tx_id, owner=request.user, needs_review=True)
     tx.delete()
     return render(request, "imports/_review_body.html", _review_context(request.user))
-
-
-@login_required
-@require_POST
-def review_confirm_all(request):
-    Transaction.objects.filter(owner=request.user, needs_review=True).update(needs_review=False)
-    return render(request, "imports/_review_body.html", _review_context(request.user))
