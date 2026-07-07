@@ -4,6 +4,35 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado según [SemVer](https://semver.org/lang/es/) — criterio detallado en
 [`CLAUDE.md`](./CLAUDE.md#10-versionado-y-ramas).
 
+## [1.2.0] — 2026-07-07
+
+Rework de la clasificación grande/hormiga (ahora por monto), gastos grandes
+forzables a mano, porcentaje libre en gastos compartidos y alta de gasto unificada.
+
+### Agregado
+- **Umbral hormiga configurable** (`User.ant_threshold`, default $100.000):
+  un gasto por debajo cuenta como hormiga, salvo los fijos. Editable en Ajustes.
+- **Gastos grandes automáticos** (`User.auto_big_expenses`): toggle en Ajustes
+  para prender/apagar la clasificación por monto.
+- **"Es un gasto grande"** (`Transaction.is_big`): checkbox en el alta y la
+  edición para forzar que un gasto cuente como grande sin importar el monto.
+- **"Mi parte" como porcentaje libre** (0–100%) en la revisión del resumen de
+  tarjeta; **0%** marca que el consumo no sale de tu billetera.
+
+### Cambiado
+- La separación **grande vs hormiga** ahora es **por monto**, no por el tipo de
+  categoría. Los gastos fijos siguen siendo grandes siempre, aunque sean chicos.
+- **Alta de gasto unificada**: un solo formulario "Agregar un gasto" (se eliminó
+  el de "gasto grande puntual"), ya que el monto define el destino.
+- **Seed** de categorías reescrito a buckets amplios (Vivienda, Servicios,
+  Suscripciones, Salud, Impuestos…); ya no crea categorías-factura (Expensas,
+  TGI, Flow…) ni gastos fijos recurrentes de ejemplo.
+- Inputs numéricos sin las flechitas (spinners).
+
+### Migraciones
+- `accounts`: `ant_threshold`, `auto_big_expenses`.
+- `transactions`: `is_big`.
+
 ## [1.1.0] — 2026-07-02
 
 Descripción en la carga rápida, opción "sin categoría" y endurecimiento de seguridad
