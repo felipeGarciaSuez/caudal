@@ -56,12 +56,10 @@
                 </select>
               </div>
               <div class="field">
-                <label>Mi parte</label>
-                <select name="share" aria-label="Qué parte es tuya">
-                  <option value="1.000" {% if tx.shared_ratio|floatformat:3 == "1.000" %}selected{% endif %}>Todo mío</option>
-                  <option value="0.500" {% if tx.shared_ratio|floatformat:3 == "0.500" %}selected{% endif %}>Mitad (50%)</option>
-                  <option value="0.333" {% if tx.shared_ratio|floatformat:3 == "0.333" %}selected{% endif %}>Un tercio (33%)</option>
-                </select>
+                <label>Mi parte (%)</label>
+                <input type="number" name="share_pct" inputmode="numeric" min="0" max="100" step="1"
+                       value="{% widthratio tx.shared_ratio 1 100 %}" aria-label="Porcentaje que pagás vos">
+                <span class="hint muted">0% = no sale de tu billetera</span>
               </div>
             </div>
             <div class="rev-actions">

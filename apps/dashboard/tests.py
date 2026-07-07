@@ -13,7 +13,11 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def user(django_user_model):
-    return django_user_model.objects.create_user(username="felipe", password="x")
+    # Pin the hormiga threshold so classification tests don't depend on the
+    # product default (which can change).
+    return django_user_model.objects.create_user(
+        username="felipe", password="x", ant_threshold=Decimal("20000.00")
+    )
 
 
 @pytest.fixture
@@ -308,6 +312,122 @@ def test_variable_big_expense_shows_in_grandes_not_hormiga(client_logged, user, 
     assert "Super" not in ant_names
 
 
+def test_loose_small_expense_goes_to_hormiga(client_logged, user, wallet):
+    """A small loose expense (even uncategorized) is hormiga, not a gasto grande."""
+    period = timezone.localdate().strftime("%Y-%m")
+    Transaction.objects.create(
+        owner=user,
+        wallet=wallet,
+        category=None,
+        amount=Decimal("800"),
+        kind=Transaction.Kind.EXPENSE,
+        date=timezone.localdate(),
+        description="Cafecito",
+    )
+    resp = client_logged.get(reverse("dashboard:month", args=[period]))
+    assert resp.context["big_rows"] == []
+    assert resp.context["m"]["ant"] == Decimal("800.00")
+    assert resp.context["ant_rows"][0]["total"] == Decimal("800.00")
+
+
+def test_small_variable_expense_is_hormiga_by_amount(client_logged, user, wallet):
+    """Classification is by amount: a small variable expense counts as hormiga."""
+    period = timezone.localdate().strftime("%Y-%m")
+    cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
+    _variable_expense(user, wallet, cat, "5000", timezone.localdate())
+    resp = client_logged.get(reverse("dashboard:month", args=[period]))
+    assert {r["category__name"] for r in resp.context["big_rows"]} == set()
+    assert "Super" in {r["category__name"] for r in resp.context["ant_rows"]}
+
+
+def test_small_fixed_expense_stays_in_grandes(client_logged, user, wallet):
+    """Fixed obligations are planned spend: never hormiga, even below threshold."""
+    period = timezone.localdate().strftime("%Y-%m")
+    subs = Category.objects.create(owner=user, name="Suscripciones", kind=Category.Kind.FIXED)
+    Transaction.objects.create(
+        owner=user,
+        wallet=wallet,
+        category=subs,
+        amount=Decimal("4000"),
+        kind=Transaction.Kind.EXPENSE,
+        date=timezone.localdate(),
+        source=Transaction.Source.IMPORT,
+    )
+    resp = client_logged.get(reverse("dashboard:month", args=[period]))
+    assert "Suscripciones" in {r["category__name"] for r in resp.context["big_rows"]}
+    assert resp.context["ant_rows"] == []
+
+
+def test_ant_threshold_is_configurable(client_logged, user, wallet):
+    """Raising the threshold reclassifies a mid-size expense from grande to hormiga."""
+    period = timezone.localdate().strftime("%Y-%m")
+    cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
+    _variable_expense(user, wallet, cat, "25000", timezone.localdate())
+    # Default threshold 20000: 25000 is a gasto grande.
+    resp = client_logged.get(reverse("dashboard:month", args=[period]))
+    assert "Super" in {r["category__name"] for r in resp.context["big_rows"]}
+    # Raise the threshold above 25000 via Ajustes (auto stays on): now it's hormiga.
+    client_logged.post(
+        reverse("dashboard:settings"), {"ant_threshold": "30000", "auto_big_expenses": "on"}
+    )
+    resp = client_logged.get(reverse("dashboard:month", args=[period]))
+    assert resp.context["big_rows"] == []
+    assert "Super" in {r["category__name"] for r in resp.context["ant_rows"]}
+
+
+def test_forced_big_small_expense_goes_to_grandes(client_logged, user, wallet):
+    """The 'es un gasto grande' tick forces a small expense into grandes."""
+    period = timezone.localdate().strftime("%Y-%m")
+    resp = client_logged.post(
+        reverse("dashboard:add_transaction"),
+        {
+            "period": period,
+            "kind": "expense",
+            "date": timezone.localdate().strftime("%Y-%m-%d"),
+            "is_paid": "on",
+            "is_big": "on",
+            "amount": "800",
+            "wallet": wallet.id,
+            "category": "",
+            "description": "Regalo",
+        },
+    )
+    assert resp.status_code == 200
+    assert Transaction.objects.get().is_big is True
+    resp = client_logged.get(reverse("dashboard:month", args=[period]))
+    assert resp.context["ant_rows"] == []
+    assert resp.context["big_rows"][0]["total"] == Decimal("800.00")
+
+
+def test_auto_off_large_expense_is_hormiga_unless_marked(client_logged, user, wallet):
+    """With auto off, amount is ignored: a big expense is hormiga unless ticked big."""
+    period = timezone.localdate().strftime("%Y-%m")
+    user.auto_big_expenses = False
+    user.save(update_fields=["auto_big_expenses"])
+    cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
+    loose = _variable_expense(user, wallet, cat, "90000", timezone.localdate())
+    marked = _variable_expense(user, wallet, cat, "50000", timezone.localdate())
+    marked.is_big = True
+    marked.save(update_fields=["is_big"])
+    resp = client_logged.get(reverse("dashboard:month", args=[period]))
+    ant_totals = {r["category__name"]: r["total"] for r in resp.context["ant_rows"]}
+    big_totals = {r["category__name"]: r["total"] for r in resp.context["big_rows"]}
+    assert ant_totals["Super"] == loose.own_amount  # 90000, unmarked -> hormiga
+    assert big_totals["Super"] == marked.own_amount  # 50000, marked -> grande
+
+
+def test_settings_toggles_auto_big_expenses(client_logged, user):
+    """Unchecking the box in Ajustes turns off amount-based classification."""
+    client_logged.post(reverse("dashboard:settings"), {"ant_threshold": "100000"})
+    user.refresh_from_db()
+    assert user.auto_big_expenses is False
+    client_logged.post(
+        reverse("dashboard:settings"), {"ant_threshold": "100000", "auto_big_expenses": "on"}
+    )
+    user.refresh_from_db()
+    assert user.auto_big_expenses is True
+
+
 def test_categorizacion_section_removed(client_logged, user, wallet):
     period = timezone.localdate().strftime("%Y-%m")
     resp = client_logged.get(reverse("dashboard:month", args=[period]))
@@ -369,9 +489,7 @@ def test_group_category_excluded_from_selectors(client_logged, user):
     Category.objects.create(owner=user, name="Alquiler", kind=Category.Kind.FIXED, parent=vivienda)
     resp = client_logged.get(reverse("dashboard:month", args=[period]))
     quick_names = {c.name for c in resp.context["quick_categories"]}
-    big_names = {c.name for c in resp.context["big_categories"]}
     assert "Gastos Vivienda" not in quick_names
-    assert "Gastos Vivienda" not in big_names
     assert "Alquiler" in quick_names
 
 
@@ -421,16 +539,6 @@ def test_total_spent_unaffected_by_regrouping(client_logged, user, wallet):
     assert m["big_total"] == Decimal("25000.00")
     assert m["ant"] == Decimal("3000.00")
     assert m["total_spent"] == Decimal("128000.00")
-
-
-def test_big_categories_exclude_ant(client_logged, user):
-    period = timezone.localdate().strftime("%Y-%m")
-    Category.objects.create(owner=user, name="Alquiler", kind=Category.Kind.FIXED)
-    Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
-    Category.objects.create(owner=user, name="Café", kind=Category.Kind.ANT)
-    resp = client_logged.get(reverse("dashboard:month", args=[period]))
-    names = {c.name for c in resp.context["big_categories"]}
-    assert names == {"Alquiler", "Super"}
 
 
 def test_hormiga_panel_ranks_ant_categories(client_logged, user, wallet):
@@ -594,13 +702,15 @@ def test_big_row_single_movement_is_editable(client_logged, user, wallet):
 def test_big_row_aggregates_when_multiple(client_logged, user, wallet):
     period = timezone.localdate().strftime("%Y-%m")
     cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
-    _variable_expense(user, wallet, cat, "12000", timezone.localdate())
-    _variable_expense(user, wallet, cat, "8000", timezone.localdate())
+    # Both above the hormiga threshold so they land in "grandes" (this test is
+    # about grouping several movements into one row, not the hormiga split).
+    _variable_expense(user, wallet, cat, "30000", timezone.localdate())
+    _variable_expense(user, wallet, cat, "25000", timezone.localdate())
     resp = client_logged.get(reverse("dashboard:month", args=[period]))
     rows = {r["category__name"]: r for r in resp.context["big_rows"]}
     assert rows["Super"]["single"] is None  # several movements -> grouped
     assert rows["Super"]["count"] == 2
-    assert rows["Super"]["total"] == Decimal("20000.00")
+    assert rows["Super"]["total"] == Decimal("55000.00")
 
 
 def test_delete_from_detail_rerenders_detail_body(client_logged, user, wallet):
@@ -691,7 +801,7 @@ def test_statement_charge_update_sets_category_and_share(client_logged, user):
     cat = Category.objects.create(owner=user, name="Súper", kind=Category.Kind.VARIABLE)
     resp = client_logged.post(
         reverse("dashboard:statement_charge_update", args=[tx.id]),
-        {"category": cat.id, "share": "0.500"},
+        {"category": cat.id, "share_pct": "50"},
     )
     assert resp.status_code == 200
     tx.refresh_from_db()
@@ -700,6 +810,21 @@ def test_statement_charge_update_sets_category_and_share(client_logged, user):
     assert tx.is_shared is True
     assert tx.needs_review is False
     assert tx.own_amount == Decimal("5000.00")
+
+
+def test_statement_charge_share_zero_percent_is_not_ours(client_logged, user):
+    """0% means the charge doesn't come out of our wallet: own_amount is 0."""
+    card = _card(user)
+    tx = _card_charge(user, card, "10000")
+    resp = client_logged.post(
+        reverse("dashboard:statement_charge_update", args=[tx.id]),
+        {"share_pct": "0"},
+    )
+    assert resp.status_code == 200
+    tx.refresh_from_db()
+    assert tx.shared_ratio == Decimal("0.000")
+    assert tx.is_shared is True
+    assert tx.own_amount == Decimal("0.00")
 
 
 def test_statement_charge_delete(client_logged, user):

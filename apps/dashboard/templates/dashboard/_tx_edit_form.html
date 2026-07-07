@@ -44,6 +44,9 @@
   <label class="paid-check">
     <input type="checkbox" name="is_paid" {% if tx.is_paid %}checked{% endif %}> Pagado
   </label>
+  <label class="paid-check">
+    <input type="checkbox" name="is_big" {% if tx.is_big %}checked{% endif %}> Es un gasto grande
+  </label>
   <div class="two-col">
     <button type="button" class="btn" @click="edit = false">Cancelar</button>
     <button type="submit" class="btn btn-primary">Guardar cambios</button>
