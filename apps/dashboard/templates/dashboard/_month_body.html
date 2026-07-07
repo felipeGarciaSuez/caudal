@@ -160,43 +160,6 @@
     </div>
   {% endif %}
 
-  <div x-data="{ open: false, amount: '', desc: '' }"
-       style="margin-top:1rem;padding-top:.9rem;border-top:1px dashed var(--line)">
-    <button type="button" class="collapse-head" @click="open = !open">
-      <span>{% icon "plus" "icon" %} Agregar un gasto grande puntual</span>
-      <span class="chev" :class="{ 'rot': open }">{% icon "chevron-right" "icon" %}</span>
-    </button>
-    <div x-show="open" x-cloak style="margin-top:.9rem">
-      <form hx-post="{% url 'dashboard:add_transaction' %}" hx-target="#month-body" hx-swap="innerHTML"
-            @htmx:after-request="if ($event.detail.successful) { amount = ''; desc = '' }">
-        <input type="hidden" name="period" value="{{ period }}">
-        <input type="hidden" name="kind" value="expense">
-        <input type="hidden" name="date" value="{{ default_date|date:'Y-m-d' }}">
-        <input type="hidden" name="is_paid" value="on">
-        <div class="amount-wrap">
-          <span class="sign">$</span>
-          <input class="amount-input" type="number" name="amount" x-model="amount"
-                 inputmode="decimal" step="0.01" min="0" placeholder="0" aria-label="Monto">
-        </div>
-        <div class="field">
-          <input class="input" type="text" name="description" x-model="desc" maxlength="255"
-                 placeholder="Descripción (opcional)" aria-label="Descripción">
-        </div>
-        <div class="field">
-          <select name="category" aria-label="Categoría">
-            <option value="">Sin categoría</option>
-            {% for c in big_categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="field">
-          <select name="wallet" aria-label="Billetera">
-            {% for w in wallets %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}
-          </select>
-        </div>
-        <button class="btn btn-primary" type="submit" :disabled="!amount" style="margin-top:.5rem;width:100%">Guardar</button>
-      </form>
-    </div>
-  </div>
 </div>
 
 {# ---------- PANEL HORMIGA (a dónde se va la plata chica) ---------- #}
@@ -273,12 +236,12 @@
   {% endif %}
 </div>
 
-{# ---------- CARGA MANUAL (secundaria, colapsable) ---------- #}
+{# ---------- CARGA MANUAL (único form de alta; el "+" del tabbar lo abre) ---------- #}
 <div class="card" id="add-card"
      x-data="{ open: window.location.hash === '#add-card', amount: '', desc: '' }"
      @open-add.window="open = true; $el.scrollIntoView({ behavior: 'smooth' })">
   <button type="button" class="collapse-head" @click="open = !open">
-    <span>{% icon "plus" "icon" %} Agregar un gasto suelto</span>
+    <span>{% icon "plus" "icon" %} Agregar un gasto</span>
     <span class="chev" :class="{ 'rot': open }">{% icon "chevron-right" "icon" %}</span>
   </button>
   <div x-show="open" x-cloak style="margin-top:.9rem">
@@ -303,6 +266,9 @@
         </select>
         <a class="hint muted" href="{% url 'wallets:wallets' %}" style="display:inline-block;margin-top:.4rem">{% icon "wallet" "icon" %} Gestionar billeteras</a>
       </div>
+      <label class="paid-check" style="margin-top:.3rem">
+        <input type="checkbox" name="is_big"> Es un gasto grande
+      </label>
       <div class="chips" style="margin-top:.7rem">
         {% for c in quick_categories %}
           <button class="chip k-{{ c.kind }}" type="submit" name="category" value="{{ c.id }}" :disabled="!amount">

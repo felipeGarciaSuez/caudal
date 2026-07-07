@@ -10,7 +10,16 @@ class QuickTransactionForm(forms.ModelForm):
 
     class Meta:
         model = Transaction
-        fields = ["amount", "category", "wallet", "date", "kind", "description", "is_paid"]
+        fields = [
+            "amount",
+            "category",
+            "wallet",
+            "date",
+            "kind",
+            "description",
+            "is_paid",
+            "is_big",
+        ]
         widgets = {
             "date": forms.DateInput(attrs={"type": "date"}),
             "amount": forms.NumberInput(attrs={"inputmode": "decimal", "step": "0.01", "min": "0"}),
