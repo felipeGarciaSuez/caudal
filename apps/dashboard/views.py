@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, F, Q, Sum
+from django.db.models import F, Q, Sum
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -72,15 +72,28 @@ def _pct(part: Decimal, whole: Decimal) -> int:
 
 
 def _ant_total(user, period: str) -> Decimal:
-    """Total hormiga (ant) spend for a period (own part, excluding review)."""
-    total = Transaction.objects.filter(
-        owner=user,
-        period=period,
-        kind=Transaction.Kind.EXPENSE,
-        category__kind=Category.Kind.ANT,
-    ).exclude(wallet__kind=Wallet.Kind.CREDIT_CARD).aggregate(
-        total=Sum(F("amount") * F("shared_ratio"))
-    )["total"] or Decimal("0")
+    """Total hormiga spend for a period (own part, excluding review).
+
+    Hormiga is defined by amount, not category: any non-card, non-fixed expense
+    whose own part is below the user's threshold. Fixed obligations are planned
+    spend and never hormiga, even when small.
+    """
+    own = F("amount") * F("shared_ratio")
+    qs = (
+        Transaction.objects.filter(
+            owner=user,
+            period=period,
+            kind=Transaction.Kind.EXPENSE,
+            needs_review=False,
+        )
+        .exclude(wallet__kind=Wallet.Kind.CREDIT_CARD)
+        .exclude(category__kind=Category.Kind.FIXED)
+        .exclude(is_big=True)
+        .annotate(_own=own)
+    )
+    if user.auto_big_expenses:
+        qs = qs.filter(_own__lt=user.ant_threshold)
+    total = qs.aggregate(total=Sum(own))["total"] or Decimal("0")
     return Decimal(total).quantize(Decimal("0.01"))
 
 
@@ -137,18 +150,22 @@ def _month_context(user, period: str) -> dict:
         .order_by("is_paid", "date", "id")
     )
 
-    # Everything else that isn't hormiga: imported fixed-kind (e.g. card
-    # subscriptions) and all variable (Súper, etc.). Grouped by category so a big
-    # import shows as one line instead of dozens of rows -- BUT a category with a
-    # single movement is surfaced as that movement, so it can be ticked/deleted
-    # right here (grouped when several, loose when one).
+    # Split the rest (non-checklist) into "grandes" vs "hormiga" by AMOUNT, not
+    # category: a small loose expense is hormiga; a big one is grande. Fixed
+    # obligations (e.g. imported subscriptions) are planned spend and stay in
+    # grandes even when small. Threshold is per-user, editable in Ajustes.
     zero = Decimal("0.00")
-    big_txs = (
-        expenses.exclude(_CHECKLIST_Q)
-        .exclude(category__kind=Category.Kind.ANT)
-        .select_related("wallet", "category")
-        .order_by("-date", "-id")
-    )
+    rest = expenses.exclude(_CHECKLIST_Q).annotate(_own=own)
+    # Hormiga = not forced-big, not fixed, and (when auto is on) below the threshold.
+    # With auto off, only an explicit "es un gasto grande" tick pulls it into grandes.
+    is_hormiga = ~Q(is_big=True) & ~Q(category__kind=Category.Kind.FIXED)
+    if user.auto_big_expenses:
+        is_hormiga &= Q(_own__lt=user.ant_threshold)
+
+    # Grandes: grouped by category so a big import shows as one line instead of
+    # dozens -- BUT a category with a single movement is surfaced as that movement,
+    # so it can be ticked/deleted right here (grouped when several, loose when one).
+    big_txs = rest.exclude(is_hormiga).select_related("wallet", "category").order_by("-date", "-id")
     big_groups: dict[int | None, list] = {}
     big_order: list[int | None] = []
     for tx in big_txs:
@@ -174,23 +191,27 @@ def _month_context(user, period: str) -> dict:
         )
     big_rows.sort(key=lambda r: r["total"], reverse=True)
 
-    # Hormiga: small/frequent spend, kept fully separate from "grandes".
-    ant_rows = list(
-        expenses.filter(category__kind=Category.Kind.ANT)
-        .values("category", "category__name", "category__kind", "category__icon")
-        .annotate(total=Sum(own), count=Count("id"))
-        .order_by("-total")
-    )
-    # Individual movements per category, for the "ver individualmente" toggle.
-    ant_movements: dict[int | None, list] = {}
-    for tx in (
-        expenses.filter(category__kind=Category.Kind.ANT)
-        .select_related("wallet", "category")
-        .order_by("-date", "-id")
-    ):
-        ant_movements.setdefault(tx.category_id, []).append(tx)
-    for row in ant_rows:
-        row["movements"] = ant_movements.get(row["category"], [])
+    # Hormiga: small/frequent spend, kept fully separate from "grandes". Grouped
+    # by category in Python (same as big_rows) so uncategorized loose expenses
+    # cluster under one "Sin categoría" row and carry their individual movements.
+    ant_groups: dict[int | None, list] = {}
+    for tx in rest.filter(is_hormiga).select_related("wallet", "category").order_by("-date", "-id"):
+        ant_groups.setdefault(tx.category_id, []).append(tx)
+    ant_rows = []
+    for key, txs in ant_groups.items():
+        cat = txs[0].category
+        ant_rows.append(
+            {
+                "category": key,
+                "category__name": cat.name if cat else None,
+                "category__kind": cat.kind if cat else None,
+                "category__icon": cat.icon if cat else None,
+                "total": sum((t.own_amount for t in txs), zero),
+                "count": len(txs),
+                "movements": txs,
+            }
+        )
+    ant_rows.sort(key=lambda r: r["total"], reverse=True)
 
     fixed_total = sum((t.own_amount for t in fixed_rows), zero)
     fixed_paid = sum((t.own_amount for t in fixed_rows if t.is_paid), zero)
@@ -289,15 +310,10 @@ def _month_context(user, period: str) -> dict:
         "default_date": _default_date_for(period),
         "wallets": Wallet.objects.filter(owner=user, is_active=True),
         # Group-only categories (e.g. "Gastos Vivienda") aren't selectable
-        # directly — only their children are.
+        # directly — only their children are. Single add form uses these chips.
         "quick_categories": Category.objects.filter(owner=user, children__isnull=True).order_by(
             "kind", "name"
         ),
-        "big_categories": Category.objects.filter(
-            owner=user,
-            kind__in=[Category.Kind.FIXED, Category.Kind.VARIABLE],
-            children__isnull=True,
-        ).order_by("kind", "name"),
     }
 
 
@@ -308,8 +324,35 @@ def home(request):
 
 @login_required
 def settings_home(request):
-    """Hub of configuration screens: wallets, categories, rules, fixed expenses."""
-    return render(request, "dashboard/settings.html", {"nav_active": "settings"})
+    """Hub of configuration screens: wallets, categories, rules, fixed expenses.
+
+    Also edits the hormiga threshold (the amount below which a non-fixed expense
+    counts as hormiga instead of a "gasto grande").
+    """
+    error = None
+    if request.method == "POST":
+        raw = (request.POST.get("ant_threshold") or "").strip().replace(",", ".")
+        try:
+            value = Decimal(raw)
+            if value < 0:
+                raise InvalidOperation
+        except InvalidOperation:
+            error = "Ingresá un monto válido."
+        else:
+            request.user.ant_threshold = value.quantize(Decimal("0.01"))
+            request.user.auto_big_expenses = "auto_big_expenses" in request.POST
+            request.user.save(update_fields=["ant_threshold", "auto_big_expenses"])
+            return redirect("dashboard:settings")
+    return render(
+        request,
+        "dashboard/settings.html",
+        {
+            "nav_active": "settings",
+            "ant_threshold": request.user.ant_threshold,
+            "auto_big_expenses": request.user.auto_big_expenses,
+            "error": error,
+        },
+    )
 
 
 @login_required
@@ -533,11 +576,14 @@ def statement_charge_update(request, tx_id):
     )
     cat_id = request.POST.get("category")
     tx.category = Category.objects.filter(owner=request.user, pk=cat_id).first() if cat_id else None
+    # 'Mi parte' as a free percentage (0-100). 0% means the charge is not ours
+    # at all (own_amount = 0), e.g. the roommate's part on a shared card.
     try:
-        ratio = Decimal((request.POST.get("share") or "1").replace(",", "."))
+        pct = Decimal((request.POST.get("share_pct") or "100").replace(",", "."))
     except InvalidOperation:
-        ratio = Decimal("1")
-    ratio = min(max(ratio, Decimal("0")), Decimal("1"))
+        pct = Decimal("100")
+    pct = min(max(pct, Decimal("0")), Decimal("100"))
+    ratio = (pct / Decimal("100")).quantize(Decimal("0.001"))
     tx.shared_ratio = ratio
     tx.is_shared = ratio < 1
     tx.needs_review = False  # confirmed

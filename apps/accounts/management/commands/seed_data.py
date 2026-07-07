@@ -8,7 +8,6 @@ Usage:
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.budgets.models import RecurringExpense
 from apps.imports.models import CategoryRule
 from apps.savings.models import Asset
 from apps.transactions.models import Category
@@ -29,30 +28,26 @@ WALLETS = [
 ]
 
 # (name, kind, icon) — icon is a Lucide icon name (see apps/dashboard/templatetags/icons.py).
+# Broad buckets on purpose: a specific bill (Flow, TGI, Expensas, Gym) is NOT a
+# category, it's the *description* of a fixed expense the user loads under one of
+# these. The monthly checklist labels each row by that description, so keeping
+# categories general avoids a taxonomy cluttered with one-off line items.
+# This is only a starting point: every category is editable/removable from the app.
 CATEGORIES = [
-    # Fijos — "Gastos Vivienda" agrupa (parent) los del depa; ver VIVIENDA_CHILDREN.
-    ("Gastos Vivienda", Category.Kind.FIXED, "home"),
-    ("Alquiler", Category.Kind.FIXED, "home"),
-    ("Expensas", Category.Kind.FIXED, "building-2"),
-    ("Agua", Category.Kind.FIXED, "droplet"),
-    ("Luz", Category.Kind.FIXED, "lightbulb"),
-    ("Gas", Category.Kind.FIXED, "flame"),
-    ("TGI", Category.Kind.FIXED, "flame"),
-    ("Flow", Category.Kind.FIXED, "wifi"),
-    ("Teléfono", Category.Kind.FIXED, "smartphone"),
-    ("Gym", Category.Kind.FIXED, "dumbbell"),
-    ("Obra Social", Category.Kind.FIXED, "heart-pulse"),
+    # Fijos: obligaciones recurrentes (alquiler, servicios, suscripciones...).
+    ("Vivienda", Category.Kind.FIXED, "home"),
+    ("Servicios", Category.Kind.FIXED, "lightbulb"),
     ("Suscripciones", Category.Kind.FIXED, "tv"),
+    ("Salud", Category.Kind.FIXED, "heart-pulse"),
     ("Impuestos", Category.Kind.FIXED, "receipt"),
-    # Variables
-    ("Super", Category.Kind.VARIABLE, "shopping-cart"),
+    # Variables: gasto necesario pero que cambia mes a mes.
+    ("Supermercado", Category.Kind.VARIABLE, "shopping-cart"),
     ("Nafta", Category.Kind.VARIABLE, "fuel"),
-    ("Salud", Category.Kind.VARIABLE, "pill"),
+    ("Farmacia", Category.Kind.VARIABLE, "pill"),
     ("Ropa", Category.Kind.VARIABLE, "shirt"),
     ("Hogar", Category.Kind.VARIABLE, "sofa"),
     ("Ocio", Category.Kind.VARIABLE, "tv"),
-    ("Ahorro", Category.Kind.VARIABLE, "piggy-bank"),
-    # Hormiga
+    # Hormiga: los chicos y frecuentes, el foco de la app.
     ("Delivery", Category.Kind.ANT, "bike"),
     ("Kiosco", Category.Kind.ANT, "cookie"),
     ("Café", Category.Kind.ANT, "coffee"),
@@ -60,12 +55,6 @@ CATEGORIES = [
     ("Apps", Category.Kind.ANT, "layout-grid"),
     ("Compras chicas", Category.Kind.ANT, "shopping-bag"),
 ]
-
-# Categories grouped under the "Gastos Vivienda" parent (housing costs, often
-# shared with roommates) so the checklist can cluster them visually, separate
-# from personal fijos (Teléfono, Gym, Obra Social, ...).
-VIVIENDA_PARENT = "Gastos Vivienda"
-VIVIENDA_CHILDREN = ["Alquiler", "Expensas", "Agua", "Luz", "Gas", "TGI", "Flow"]
 
 # keyword -> category name. Keywords match (case-insensitive) inside the description.
 RULES = [
@@ -86,14 +75,14 @@ RULES = [
     ("CABIFY", "Transporte/Uber"),
     ("DIDI", "Transporte/Uber"),
     ("SUBE", "Transporte/Uber"),
-    ("CARREFOUR", "Super"),
-    ("COTO", "Super"),
-    ("DIA ", "Super"),
-    ("JUMBO", "Super"),
-    ("VEA", "Super"),
-    ("SUPERMERCADO", "Super"),
-    ("FARMACIA", "Salud"),
-    ("FARMACITY", "Salud"),
+    ("CARREFOUR", "Supermercado"),
+    ("COTO", "Supermercado"),
+    ("DIA ", "Supermercado"),
+    ("JUMBO", "Supermercado"),
+    ("VEA", "Supermercado"),
+    ("SUPERMERCADO", "Supermercado"),
+    ("FARMACIA", "Farmacia"),
+    ("FARMACITY", "Farmacia"),
     ("KIOSCO", "Kiosco"),
     ("CAFE", "Café"),
     ("COFFEE", "Café"),
@@ -117,7 +106,7 @@ RULES = [
     ("SHOWCASE", "Ocio"),
     ("CINE", "Ocio"),
     ("PASAJES", "Transporte/Uber"),
-    ("AGUAS ASSA", "Agua"),
+    ("AGUAS ASSA", "Servicios"),
     ("PAGO ROSARIO", "Impuestos"),
 ]
 
@@ -130,25 +119,13 @@ ASSETS = [
     ("USDT", "Dólar cripto (USDT)", Asset.Kind.STABLECOIN),
 ]
 
-
-# (name, default_amount, category_name, wallet_name, day_of_month)
-# Placeholder amounts — todo editable desde la app. Son los fijos "grandes" del mes.
-RECURRING = [
-    ("Alquiler", 480000, "Alquiler", "ICBC", 3),
-    ("Expensas", 96000, "Expensas", "ICBC", 5),
-    ("Agua", 18000, "Agua", "Galicia", 10),
-    ("Luz", 41000, "Luz", "Galicia", 12),
-    ("Gas", 22000, "Gas", "Galicia", 12),
-    ("TGI", 15000, "TGI", "Galicia", 10),
-    ("Flow", 29000, "Flow", "Mercado Pago", 8),
-    ("Teléfono", 25000, "Teléfono", "Personal Pay", 15),
-    ("Gym", 22000, "Gym", "Mercado Pago", 2),
-    ("Obra Social", 35000, "Obra Social", "ICBC", 1),
-]
+# NOTE: no fixed expenses (RecurringExpense) are seeded on purpose. A fresh user
+# gets categories/wallets/rules and loads their own fijos so the amounts and the
+# checklist reflect their real life from day one, not placeholder numbers.
 
 
 class Command(BaseCommand):
-    help = "Crea wallets, categorías, reglas y fijos recurrentes base (idempotente)."
+    help = "Crea wallets, categorías y reglas base (idempotente). No carga fijos."
 
     def add_arguments(self, parser):
         parser.add_argument("--user", help="username; por defecto, el primer superuser")
@@ -157,12 +134,10 @@ class Command(BaseCommand):
         user = self._resolve_user(options.get("user"))
 
         wallets_created = 0
-        wallets = {}
         for name, kind in WALLETS:
-            wallet, created = Wallet.objects.get_or_create(
+            _, created = Wallet.objects.get_or_create(
                 owner=user, name=name, defaults={"kind": kind}
             )
-            wallets[name] = wallet
             wallets_created += int(created)
 
         categories_created = 0
@@ -177,15 +152,6 @@ class Command(BaseCommand):
                 cat.save(update_fields=["icon"])
             categories[name] = cat
             categories_created += int(created)
-
-        # Group the depto's fijos under "Gastos Vivienda" (backfills existing rows too).
-        vivienda = categories.get(VIVIENDA_PARENT)
-        if vivienda is not None:
-            for child_name in VIVIENDA_CHILDREN:
-                child = categories.get(child_name)
-                if child is not None and child.parent_id != vivienda.id:
-                    child.parent = vivienda
-                    child.save(update_fields=["parent"])
 
         rules_created = 0
         for priority, (keyword, cat_name) in enumerate(RULES, start=1):
@@ -207,29 +173,11 @@ class Command(BaseCommand):
             )
             assets_created += int(created)
 
-        recurring_created = 0
-        for name, amount, cat_name, wallet_name, day in RECURRING:
-            category = categories.get(cat_name)
-            wallet = wallets.get(wallet_name)
-            if category is None or wallet is None:
-                continue
-            _, created = RecurringExpense.objects.get_or_create(
-                owner=user,
-                name=name,
-                defaults={
-                    "default_amount": amount,
-                    "category": category,
-                    "wallet": wallet,
-                    "day_of_month": day,
-                },
-            )
-            recurring_created += int(created)
-
         self.stdout.write(
             self.style.SUCCESS(
                 f"Seed para '{user}': {wallets_created} wallets, "
-                f"{categories_created} categorías, {rules_created} reglas, "
-                f"{recurring_created} fijos recurrentes y {assets_created} activos nuevos."
+                f"{categories_created} categorías, {rules_created} reglas "
+                f"y {assets_created} activos nuevos."
             )
         )
 

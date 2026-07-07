@@ -95,6 +95,11 @@ h1, h2, h3 { margin: 0; }
 .amount-input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px rgba(52,226,176,.12); }
 .amount-input::placeholder { color: var(--faint); }
 
+/* Hide the up/down spinners on numeric inputs (Chrome/Safari/Firefox). */
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
 .field { display: flex; gap: .5rem; align-items: center; margin-bottom: .3rem; }
 select, .input {
   width: 100%; background: var(--bg-1); color: var(--text); border: 1.5px solid var(--line);
