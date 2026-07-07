@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 import pytest
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -852,3 +853,12 @@ def test_cannot_touch_other_users_statement_charge(client_logged, django_user_mo
     resp = client_logged.post(reverse("dashboard:statement_charge_delete", args=[tx.id]))
     assert resp.status_code == 404
     assert Transaction.objects.filter(pk=tx.id).exists()
+
+
+@override_settings(DEBUG=False)
+def test_custom_404_page(client):
+    resp = client.get("/esta-ruta-no-existe-12345/")
+    assert resp.status_code == 404
+    body = resp.content.decode()
+    assert "Caudal" in body
+    assert "Volver al inicio" in body

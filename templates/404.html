@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load icons %}
+{% block title %}Página no encontrada — Caudal{% endblock %}
+
+{% block content %}
+  <div class="login">
+    <div class="brand">
+      <div class="logo">{% icon "wallet" "icon" %}</div>
+      <div class="wordmark">Caudal</div>
+    </div>
+
+    <div class="card" style="text-align:center">
+      <div style="font-size:3.6rem;font-weight:800;letter-spacing:-2px;line-height:1;color:var(--brand)">404</div>
+      <p style="color:var(--muted);margin:.6rem 0 1.3rem">
+        Esta página no existe o se movió. Puede pasar.
+      </p>
+      <a class="btn btn-primary" href="/">Volver al inicio</a>
+    </div>
+  </div>
+{% endblock %}
+
+{% block tabbar %}{% endblock %}
