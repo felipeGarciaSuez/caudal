@@ -129,3 +129,8 @@ AXES_IPWARE_META_PRECEDENCE_ORDER = ["HTTP_X_FORWARDED_FOR", "REMOTE_ADDR"]
 # Admin URL is configurable so it can be moved off the well-known /admin/ path
 # in prod (set ADMIN_URL to something hard to guess; keep the trailing slash).
 ADMIN_URL = env("ADMIN_URL", default="admin/")
+
+# Auto-seed base wallets/categories/rules for every newly created user (signal
+# in apps/accounts/signals.py). Turned off in the test suite (see conftest.py),
+# which creates users and asserts a clean slate.
+SEED_NEW_USERS = env.bool("SEED_NEW_USERS", default=True)

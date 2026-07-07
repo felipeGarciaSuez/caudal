@@ -51,3 +51,40 @@ def test_seed_demo_populates_and_is_idempotent():
     # Re-running resets to the same month instead of duplicating.
     call_command("seed_demo", "demo")
     assert SavingsMovement.objects.filter(owner=user).count() == 2
+
+
+def test_new_user_is_seeded_when_enabled(settings):
+    from apps.accounts import seeding
+    from apps.transactions.models import Category
+    from apps.wallets.models import Wallet
+
+    settings.SEED_NEW_USERS = True
+    user = User.objects.create_user(username="nuevo", password="x")
+
+    assert {w.name for w in Wallet.objects.filter(owner=user)} == {"Mercado Pago", "Efectivo"}
+    assert Category.objects.filter(owner=user).count() == len(seeding.CATEGORIES)
+
+
+def test_new_user_not_seeded_when_disabled(settings):
+    from apps.transactions.models import Category
+    from apps.wallets.models import Wallet
+
+    settings.SEED_NEW_USERS = False
+    user = User.objects.create_user(username="pelado", password="x")
+
+    assert Wallet.objects.filter(owner=user).count() == 0
+    assert Category.objects.filter(owner=user).count() == 0
+
+
+def test_new_user_seeding_is_idempotent_on_update(settings):
+    from apps.wallets.models import Wallet
+
+    settings.SEED_NEW_USERS = True
+    user = User.objects.create_user(username="repe", password="x")
+    before = Wallet.objects.filter(owner=user).count()
+
+    # Saving again (update, not create) must not re-seed or duplicate.
+    user.monthly_income_default = 1000
+    user.save()
+
+    assert Wallet.objects.filter(owner=user).count() == before
