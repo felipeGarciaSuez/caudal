@@ -1,0 +1,13 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Caudal">
+  <defs>
+    <linearGradient id="caudal-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#34e2b0"></stop>
+      <stop offset="1" stop-color="#22d3ee"></stop>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="18" fill="url(#caudal-grad)"></rect>
+  <g fill="none" stroke="#052a20" stroke-width="4" stroke-linecap="round" opacity=".92">
+    <path d="M13 27 C19 21,25 21,31 27 S43 33,51 27"></path>
+    <path d="M13 40 C19 34,25 34,31 40 S43 46,51 40"></path>
+  </g>
+</svg>
