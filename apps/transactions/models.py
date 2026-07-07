@@ -76,6 +76,9 @@ class Transaction(models.Model):
     )
     description = models.CharField("descripción", max_length=255, blank=True)
     is_paid = models.BooleanField("pagado", default=True)
+    # User override: force this expense into "gastos grandes" regardless of amount
+    # (and regardless of the auto-by-amount setting). Fixed expenses are always big.
+    is_big = models.BooleanField("gasto grande", default=False)
 
     # Set when this row was generated from a fixed monthly template.
     recurring_expense = models.ForeignKey(

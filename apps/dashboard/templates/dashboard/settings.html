@@ -36,6 +36,29 @@
     </a>
   </div>
 
+  <form method="post" class="card" x-data="{ auto: {{ auto_big_expenses|yesno:'true,false' }} }">
+    {% csrf_token %}
+    <div class="section-title"><span>Gastos grandes y hormiga</span></div>
+    <label class="paid-check" style="margin-bottom:.4rem">
+      <input type="checkbox" name="auto_big_expenses" x-model="auto"> Gastos grandes automáticos
+    </label>
+    <span class="hint muted" style="display:block;margin-bottom:.9rem">
+      Clasificar por monto: un gasto que llega al umbral cuenta como grande solo.
+      Si lo apagás, un gasto es grande únicamente cuando lo marcás a mano al cargarlo.
+    </span>
+    <div class="field" x-show="auto" x-cloak>
+      <label for="ant_threshold">Umbral hormiga ($)</label>
+      <input class="input" id="ant_threshold" type="number" name="ant_threshold"
+             inputmode="decimal" step="0.01" min="0" value="{{ ant_threshold|stringformat:'.2f' }}">
+      {% if error %}<span class="hint" style="color:var(--danger)">{{ error }}</span>{% endif %}
+      <span class="hint muted">
+        Un gasto por debajo de este monto cuenta como hormiga; por encima, como gasto grande.
+        Los gastos fijos nunca son hormiga, aunque sean chicos.
+      </span>
+    </div>
+    <button class="btn btn-primary" type="submit">{% icon "check" "icon" %} Guardar</button>
+  </form>
+
   <p class="hint muted" style="padding:0 .2rem">
     Las <b>reglas</b> categorizan solas los movimientos al importar: si la descripción contiene
     una palabra clave (ej. "RAPPI" → Delivery), se asigna esa categoría.
