@@ -1,0 +1,7 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Caudal">
+  <rect x="2" y="2" width="60" height="60" rx="18" fill="none" stroke="#34e2b0" stroke-width="3"></rect>
+  <g fill="none" stroke="#34e2b0" stroke-width="4" stroke-linecap="round">
+    <path d="M13 27 C19 21,25 21,31 27 S43 33,51 27"></path>
+    <path d="M13 40 C19 34,25 34,31 40 S43 46,51 40"></path>
+  </g>
+</svg>
