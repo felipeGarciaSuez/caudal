@@ -429,76 +429,39 @@ def _upload(client_logged, wallet, source, text, name="f.csv"):
     )
 
 
-def test_import_preview_does_not_persist_until_confirm(client_logged, user):
+def test_import_persists_and_links_batch(client_logged, user):
     mp = Wallet.objects.create(owner=user, name="Mercado Pago", kind=Wallet.Kind.WALLET)
-    text = "Fecha;Descripción;Monto\n10/06/2026;KIOSCO;-1500\n"
-    resp = _upload(client_logged, mp, "generic_csv", text)
-
-    # Upload shows the preview; nothing is imported yet.
+    resp = _upload(
+        client_logged, mp, "generic_csv", "Fecha;Descripción;Monto\n10/06/2026;KIOSCO;-1500\n"
+    )
+    # A wallet import stays on the import page (no card review to jump to).
     assert resp.status_code == 200
-    assert "KIOSCO" in resp.content.decode()
-    assert Transaction.objects.filter(owner=user).count() == 0
-    batch = ImportBatch.objects.get(owner=user)
-    assert batch.confirmed is False
-
-
-def test_import_confirm_persists_and_links_batch(client_logged, user):
-    mp = Wallet.objects.create(owner=user, name="Mercado Pago", kind=Wallet.Kind.WALLET)
-    _upload(client_logged, mp, "generic_csv", "Fecha;Descripción;Monto\n10/06/2026;KIOSCO;-1500\n")
-    batch = ImportBatch.objects.get(owner=user, confirmed=False)
-
-    resp = client_logged.post(reverse("imports:import_confirm", args=[batch.id]))
-    assert resp.status_code == 302
-    batch.refresh_from_db()
-    assert batch.confirmed is True
     tx = Transaction.objects.get(owner=user)
+    batch = ImportBatch.objects.get(owner=user)
     assert tx.import_batch_id == batch.id  # linked, so deleting the batch removes it
 
 
-def test_import_card_preview_then_confirm_redirects_to_review(client_logged, user):
+def test_import_card_redirects_to_statement_review(client_logged, user):
     card = Wallet.objects.create(owner=user, name="ICBC Visa", kind=Wallet.Kind.CREDIT_CARD)
     text = (
         "Fecha;Comercio;Comprobante;Importe $;Importe U$S\n"
         "Consumos Tarjeta:123\n"
         "19/06/2026;SERVICIO CUOTA 01/06;00000001;30000.0;0.00\n"
     )
-    assert _upload(client_logged, card, "card_icbc", text, "resumen.csv").status_code == 200
-    batch = ImportBatch.objects.get(owner=user, confirmed=False)
-
-    resp = client_logged.post(reverse("imports:import_confirm", args=[batch.id]))
+    resp = _upload(client_logged, card, "card_icbc", text, "resumen.csv")
     assert resp.status_code == 302
     assert resp.url == reverse("dashboard:card_statement", args=[card.id, "2026-07"])
-
-
-def test_import_cancel_discards_pending_batch(client_logged, user):
-    mp = Wallet.objects.create(owner=user, name="Mercado Pago", kind=Wallet.Kind.WALLET)
-    _upload(client_logged, mp, "generic_csv", "Fecha;Descripción;Monto\n10/06/2026;KIOSCO;-1500\n")
-    batch = ImportBatch.objects.get(owner=user, confirmed=False)
-
-    client_logged.post(reverse("imports:import_cancel", args=[batch.id]))
-    assert not ImportBatch.objects.filter(pk=batch.id).exists()
-    assert Transaction.objects.filter(owner=user).count() == 0
 
 
 def test_import_delete_removes_batch_and_its_movements(client_logged, user):
     mp = Wallet.objects.create(owner=user, name="Mercado Pago", kind=Wallet.Kind.WALLET)
     _upload(client_logged, mp, "generic_csv", "Fecha;Descripción;Monto\n10/06/2026;KIOSCO;-1500\n")
-    batch = ImportBatch.objects.get(owner=user, confirmed=False)
-    client_logged.post(reverse("imports:import_confirm", args=[batch.id]))
+    batch = ImportBatch.objects.get(owner=user)
     assert Transaction.objects.filter(owner=user).count() == 1
 
     client_logged.post(reverse("imports:import_delete", args=[batch.id]))
     assert not ImportBatch.objects.filter(pk=batch.id).exists()
     assert Transaction.objects.filter(owner=user).count() == 0  # CASCADE removed the movement
-
-
-def test_loading_import_page_clears_abandoned_previews(client_logged, user):
-    mp = Wallet.objects.create(owner=user, name="Mercado Pago", kind=Wallet.Kind.WALLET)
-    _upload(client_logged, mp, "generic_csv", "Fecha;Descripción;Monto\n10/06/2026;KIOSCO;-1500\n")
-    assert ImportBatch.objects.filter(owner=user, confirmed=False).count() == 1
-
-    client_logged.get(reverse("imports:import"))  # abandoning the preview
-    assert ImportBatch.objects.filter(owner=user, confirmed=False).count() == 0
 
 
 # --- CRUD de reglas de categorización (Ajustes) ----------------------------

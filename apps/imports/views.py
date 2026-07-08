@@ -10,7 +10,7 @@ from apps.wallets.models import Wallet
 
 from .forms import ImportUploadForm
 from .models import CategoryRule, ImportBatch
-from .services import ParseError, commit_import, prepare_import
+from .services import ParseError, run_import
 
 
 def _add_href() -> str:
@@ -31,55 +31,37 @@ def _statement_review_period(wallet) -> str | None:
 
 @login_required
 def import_view(request):
-    # A pending (unconfirmed) batch only exists during the preview step; clear
-    # any left over from an abandoned preview so they don't pile up.
-    ImportBatch.objects.filter(owner=request.user, confirmed=False).delete()
-
     error = None
+    result = None
     if request.method == "POST":
         form = ImportUploadForm(request.POST, request.FILES, owner=request.user)
         if form.is_valid():
             wallet = form.cleaned_data["wallet"]
             source = form.cleaned_data["source"]
-            upload = form.cleaned_data["file"]
-            file_bytes = upload.read()
-            upload.seek(0)
             try:
-                to_create, rows_total, skipped = prepare_import(
-                    owner=request.user, wallet=wallet, source=source, file_bytes=file_bytes
+                result = run_import(
+                    owner=request.user,
+                    wallet=wallet,
+                    source=source,
+                    file=form.cleaned_data["file"],
                 )
             except ParseError as exc:
                 error = str(exc)
             else:
-                # Persist the file on a pending batch and show the preview; nothing
-                # is imported until the user confirms.
-                batch = ImportBatch(
-                    owner=request.user,
-                    wallet=wallet,
-                    source=source,
-                    rows_total=rows_total,
-                    rows_skipped=skipped,
-                    rows_imported=len(to_create),
-                    confirmed=False,
-                )
-                batch.file = upload
-                batch.save()
-                return render(
-                    request,
-                    "imports/preview.html",
-                    {
-                        "batch": batch,
-                        "rows": to_create,
-                        "skipped": skipped,
-                        "nav_active": "import",
-                        "add_href": _add_href(),
-                    },
-                )
+                # A statement import lands its charges as "sin revisar": go
+                # straight to the review view instead of the import list.
+                if wallet.kind == Wallet.Kind.CREDIT_CARD and result.rows_imported:
+                    period = _statement_review_period(wallet)
+                    if period:
+                        return redirect(
+                            "dashboard:card_statement", wallet_id=wallet.id, period=period
+                        )
+                form = ImportUploadForm(owner=request.user)
     else:
         form = ImportUploadForm(owner=request.user)
 
     recent = (
-        ImportBatch.objects.filter(owner=request.user, confirmed=True)
+        ImportBatch.objects.filter(owner=request.user)
         .select_related("wallet")
         .annotate(n_txs=Count("transactions"))[:10]
     )
@@ -89,6 +71,7 @@ def import_view(request):
         {
             "form": form,
             "error": error,
+            "result": result,
             "recent": recent,
             "nav_active": "import",
             "add_href": _add_href(),
@@ -98,40 +81,9 @@ def import_view(request):
 
 @login_required
 @require_POST
-def import_confirm(request, batch_id):
-    """Persist a previewed import (its pending batch), then go to review/list."""
-    batch = get_object_or_404(ImportBatch, pk=batch_id, owner=request.user, confirmed=False)
-    file_bytes = batch.file.read() if batch.file else b""
-    try:
-        to_create, _, _ = prepare_import(
-            owner=request.user, wallet=batch.wallet, source=batch.source, file_bytes=file_bytes
-        )
-    except ParseError:
-        batch.delete()
-        return redirect("imports:import")
-    commit_import(batch=batch, to_create=to_create)
-
-    # A statement import lands its charges as "sin revisar": go straight to review.
-    if batch.wallet.kind == Wallet.Kind.CREDIT_CARD and to_create:
-        period = _statement_review_period(batch.wallet)
-        if period:
-            return redirect("dashboard:card_statement", wallet_id=batch.wallet.id, period=period)
-    return redirect("imports:import")
-
-
-@login_required
-@require_POST
-def import_cancel(request, batch_id):
-    """Discard a previewed (still pending) import."""
-    ImportBatch.objects.filter(pk=batch_id, owner=request.user, confirmed=False).delete()
-    return redirect("imports:import")
-
-
-@login_required
-@require_POST
 def import_delete(request, batch_id):
-    """Delete a confirmed import and, via CASCADE, all the movements it created."""
-    ImportBatch.objects.filter(pk=batch_id, owner=request.user, confirmed=True).delete()
+    """Delete an import and, via CASCADE, all the movements it created."""
+    ImportBatch.objects.filter(pk=batch_id, owner=request.user).delete()
     return redirect("imports:import")
 
 
