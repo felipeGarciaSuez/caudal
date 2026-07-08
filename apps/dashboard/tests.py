@@ -818,6 +818,23 @@ def test_statement_charge_update_sets_category_and_share(client_logged, user):
     assert "confirmado" in html
 
 
+def test_statement_confirm_all_clears_review_on_every_charge(client_logged, user):
+    card = _card(user)
+    _card_charge(user, card, "10000", needs_review=True)
+    _card_charge(user, card, "20000", needs_review=True)
+    already = _card_charge(user, card, "5000", needs_review=False)
+    resp = client_logged.post(
+        reverse("dashboard:statement_confirm_all", args=[card.id, "2026-06"])
+    )
+    assert resp.status_code == 200
+    assert Transaction.objects.filter(owner=user, wallet=card, needs_review=True).count() == 0
+    # Confirming all does not touch amounts of the already-confirmed one.
+    already.refresh_from_db()
+    assert already.amount == Decimal("5000")
+    # The re-rendered body no longer offers "Guardar todo".
+    assert "Guardar todo" not in resp.content.decode()
+
+
 def test_statement_body_shows_editar_only_for_confirmed(client_logged, user):
     card = _card(user)
     _card_charge(user, card, "10000", needs_review=True)  # sin revisar

@@ -569,6 +569,26 @@ def toggle_statement_paid(request, wallet_id, period):
 
 @login_required
 @require_POST
+def statement_confirm_all(request, wallet_id, period):
+    """Confirm every unreviewed charge in the statement at once, as-is.
+
+    For users who don't want to review one by one: keeps each charge's
+    auto-assigned category and the default 'mi parte' (100%), just clears the
+    'sin revisar' flag.
+    """
+    wallet = _get_card_wallet(request.user, wallet_id)
+    Transaction.objects.filter(
+        owner=request.user, wallet=wallet, period=period, needs_review=True
+    ).update(needs_review=False)
+    return render(
+        request,
+        "dashboard/_statement_body.html",
+        _statement_context(request.user, wallet, period),
+    )
+
+
+@login_required
+@require_POST
 def statement_charge_update(request, tx_id):
     """Set category + 'mi parte' on one card charge, from the statement detail."""
     tx = get_object_or_404(
