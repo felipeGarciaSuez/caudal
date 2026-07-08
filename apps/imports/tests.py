@@ -262,6 +262,92 @@ def test_run_import_card_sets_review_and_installments(user):
     assert tx.period == "2026-07"
 
 
+# --- ICBC credit card, PDF statement (VISA) --------------------------------
+
+# Synthetic statement text (post-pypdf), NOT real data. Covers: ARS charge with
+# cuota, USD charge (spaced + glued marker), a refund and a payment and a tax
+# line (all skipped), and a charge duplicated on one line (pypdf artifact).
+_PDF_TEXT = (
+    "        FECHA   COMPROBANTE   DETALLE DE TRANSACCION        PESOS      DOLARES\n"
+    "SALDO ANTERIOR                               100.000,00     0,00\n"
+    "10.06.26 SU PAGO EN PESOS                    100.000,00-    0,00\n"
+    "05.05.26 111111* TIENDA EJEMPLO      C.02/06        12.345,67\n"
+    "20.06.26 222222 SERVICIO ONLINE      USD       10,00   10,00\n"
+    "21.06.26 333333 APPCODE X9ABUSD                 2,00   2,00\n"
+    "22.06.26 444444* REEMBOLSO ALGO                      5.000,00-\n"
+    "02.07.26 IMPUESTO DE SELLOS   $                        350,69  0,00\n"
+    "25.06.26 555555* KIOSCO EJEMPLO                 1.500,00 "
+    "25.06.26 555555* KIOSCO EJEMPLO                 1.500,00\n"
+)
+
+
+def test_parse_card_pdf_charges_period_usd_cuotas_and_skips():
+    from apps.imports.parsers import parse_card_icbc_pdf
+
+    rows = parse_card_icbc_pdf(_PDF_TEXT, usd_rate=Decimal("1000"))
+    by_id = {r.external_id: r for r in rows}
+
+    # Payment, refund, tax line and "saldo anterior" are all dropped.
+    assert len(rows) == 4
+    # Every charge is stamped with the statement month (latest dd.mm.yy = 02.07).
+    assert {r.period for r in rows} == {"2026-07"}
+
+    tienda = by_id["card:111111:-12345.67"]
+    assert tienda.amount == Decimal("-12345.67")
+    assert (tienda.installments_current, tienda.installments_total) == (2, 6)
+
+    # USD charge valued at the rate; USD figure kept in the description.
+    usd = next(r for r in rows if r.external_id.startswith("card:222222"))
+    assert usd.amount == Decimal("-10000.00")
+    assert "US$ 10.00" in usd.description
+
+    # "USD" glued to the auth code is still detected as a dollar charge.
+    glued = next(r for r in rows if r.external_id.startswith("card:333333"))
+    assert glued.amount == Decimal("-2000.00")
+
+    # The duplicated line collapses to a single charge.
+    assert sum(1 for r in rows if r.external_id.startswith("card:555555")) == 1
+
+
+def test_parse_card_pdf_usd_without_rate_is_zero():
+    from apps.imports.parsers import parse_card_icbc_pdf
+
+    rows = parse_card_icbc_pdf(_PDF_TEXT, usd_rate=None)
+    usd = next(r for r in rows if r.external_id.startswith("card:222222"))
+    assert usd.amount == Decimal("0")  # unknown ARS until a dollar price is set
+
+
+def test_parse_csv_pdf_only_for_card_source():
+    from apps.imports.parsers import ParseError, parse_csv
+
+    with pytest.raises(ParseError):
+        parse_csv(b"%PDF-1.4 fake", source="mercadopago")
+
+
+def test_run_import_card_pdf_keeps_statement_period(user, monkeypatch):
+    from datetime import date as _date
+
+    from apps.imports import services
+    from apps.imports.parsers import NormalizedRow
+
+    card = Wallet.objects.create(owner=user, name="ICBC Visa", kind=Wallet.Kind.CREDIT_CARD)
+    fake_rows = [
+        NormalizedRow(
+            date=_date(2026, 1, 16),
+            amount=Decimal("-14078.33"),
+            description="Compra vieja",
+            external_id="card:1:x",
+            needs_review=True,
+            period="2026-07",
+        )
+    ]
+    monkeypatch.setattr(services, "parse_csv", lambda *a, **k: fake_rows)
+    services.run_import(owner=user, wallet=card, source="card_icbc", file=b"%PDF-1.4")
+    tx = Transaction.objects.get()
+    assert tx.period == "2026-07"  # statement month, not the January purchase month
+    assert tx.date == _date(2026, 1, 16)  # real purchase date kept (no +1 shift)
+
+
 def test_run_import_card_clamps_month_end():
     assert _shift_one_month(date(2026, 1, 31)).isoformat() == "2026-02-28"
     assert _shift_one_month(date(2026, 12, 15)).isoformat() == "2027-01-15"
