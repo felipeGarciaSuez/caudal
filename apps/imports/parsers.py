@@ -421,6 +421,13 @@ def _visa_statement_period(text: str) -> str | None:
 
 
 def parse_card_icbc_pdf(text: str, usd_rate: Decimal | None = None) -> list[NormalizedRow]:
+    """Parse an ICBC credit-card statement PDF, auto-detecting VISA vs MASTER."""
+    if "MASTERCARD" in text.upper() or "DETALLE DEL MES" in text.upper():
+        return _parse_master_pdf(text, usd_rate)
+    return _parse_visa_pdf(text, usd_rate)
+
+
+def _parse_visa_pdf(text: str, usd_rate: Decimal | None = None) -> list[NormalizedRow]:
     """Parse the text of an ICBC VISA statement PDF into charge rows.
 
     Skips payments, refunds, taxes and fees; keeps real purchases (each with a
@@ -473,6 +480,98 @@ def parse_card_icbc_pdf(text: str, usd_rate: Decimal | None = None) -> list[Norm
             description = merchant
 
         external_id = f"card:{comp}:{amount}"
+        if external_id in seen:
+            continue
+        seen.add(external_id)
+        rows.append(
+            NormalizedRow(
+                date=txn_date,
+                amount=amount,
+                description=description,
+                external_id=external_id,
+                installments_current=cur,
+                installments_total=total,
+                needs_review=True,
+                period=period,
+            )
+        )
+    return rows
+
+
+# --- ICBC credit card, PDF statement (MASTER) ------------------------------
+# A different, messier layout. A charge line looks like:
+#   20-Nov-25 AIRBNB * HMECXCM(GBR,USD,   182,59) 00072            182,59
+#   18-Nov-25 SEGURO00/0300103578011 00305        10.923,83
+#   26-Ago-25 MALLICBC.COM.AR              03/12 00900    47.476,41
+# i.e. DD-Mmm-YY <merchant> [NN/NN cuota] <5-digit coupon> <amount>. USD charges
+# carry "USD" (in a parenthetical) and their amount is the dollar figure.
+
+_ES_MONTH_ABBR = {
+    "ene": 1, "feb": 2, "mar": 3, "abr": 4, "may": 5, "jun": 6,
+    "jul": 7, "ago": 8, "sep": 9, "set": 9, "oct": 10, "nov": 11, "dic": 12,
+}  # fmt: skip
+# MASTER amounts may omit the thousands separator ("10923,83", not "10.923,83").
+_MASTER_TXN_RE = re.compile(
+    r"^(\d{2})-([A-Za-z]{3})-(\d{2})\s+(?P<body>.+?)\s+(\d{5})\s+(?P<amount>\d[\d.]*,\d{2})\s*$"
+)
+_MASTER_CUOTA_RE = re.compile(r"(?:^|\s)(\d{2})/(\d{2})(?=\s|$)")
+_PARENS_RE = re.compile(r"\([^)]*\)")
+
+
+def _next_month_period(d: date) -> str:
+    """The month you pay a statement: the month after its latest charge."""
+    year, month = (d.year + 1, 1) if d.month == 12 else (d.year, d.month + 1)
+    return f"{year:04d}-{month:02d}"
+
+
+def _parse_master_pdf(text: str, usd_rate: Decimal | None = None) -> list[NormalizedRow]:
+    """Parse the text of an ICBC MASTERCARD statement PDF into charge rows.
+
+    Same output contract as the VISA parser: purchases only (payments/taxes have
+    no coupon and are skipped), USD valued with `usd_rate`, every charge stamped
+    with the statement period (the month after the latest charge).
+    """
+    parsed = []
+    for raw in text.splitlines():
+        line = " ".join(raw.split())
+        m = _MASTER_TXN_RE.match(line)
+        if not m:
+            continue
+        month = _ES_MONTH_ABBR.get(m.group(2).lower())
+        if not month:
+            continue
+        try:
+            txn_date = date(2000 + int(m.group(3)), month, int(m.group(1)))
+        except ValueError:
+            continue
+        parsed.append((txn_date, m.group("body"), m.group(5), m.group("amount")))
+
+    if not parsed:
+        return []
+    period = _next_month_period(max(p[0] for p in parsed))
+
+    rows: list[NormalizedRow] = []
+    seen: set[str] = set()
+    for txn_date, body, coupon, amount_str in parsed:
+        cuota = _MASTER_CUOTA_RE.search(body)
+        cur, total = (int(cuota.group(1)), int(cuota.group(2))) if cuota else (None, None)
+
+        detail = _MASTER_CUOTA_RE.sub(" ", body)
+        detail = _PARENS_RE.sub(" ", detail)  # drop "(GBR,USD, 182,59)"
+        detail = _MONEY_SIGN_RE.sub("", detail)
+        merchant = clean_merchant(" ".join(detail.split()))
+
+        value = parse_ar_amount(amount_str)
+        if value == 0:
+            continue
+        if "USD" in body.upper():
+            amount = (-value * usd_rate).quantize(Decimal("0.01")) if usd_rate else Decimal("0")
+            description = f"{merchant} (US$ {value})"
+        else:
+            amount = -value
+            description = merchant
+
+        external_id = f"card:{coupon}:{amount}"
         if external_id in seen:
             continue
         seen.add(external_id)
