@@ -34,6 +34,19 @@ SUELDO = Decimal("2500000")
 DOLLAR_PRICE = Decimal("1450")
 
 # (recurring name, category, wallet, amount, day_of_month, already_paid)
+# Demo needs a richer, Felipe-like set of wallets than the generic base seed
+# (which is just Mercado Pago + Efectivo). Created here so the demo owns its
+# fixture and doesn't depend on the base wallet list. (name, kind)
+DEMO_WALLETS = [
+    ("ICBC", Wallet.Kind.BANK),
+    ("Galicia", Wallet.Kind.BANK),
+    ("Mercado Pago", Wallet.Kind.WALLET),
+    ("Ualá", Wallet.Kind.WALLET),
+    ("Personal Pay", Wallet.Kind.WALLET),
+    ("Efectivo", Wallet.Kind.CASH),
+    ("ICBC Visa", Wallet.Kind.CREDIT_CARD),
+]
+
 FIJOS = [
     ("Alquiler", "Vivienda", "ICBC", "600000", 1, True),
     ("Expensas", "Vivienda", "Galicia", "80000", 5, True),
@@ -89,8 +102,11 @@ class Command(BaseCommand):
         except User.DoesNotExist as exc:
             raise CommandError(f"No existe el usuario '{username}'.") from exc
 
-        # Ensure base wallets/categories/assets exist, then start from a clean slate.
+        # Ensure base categories/rules/assets exist, plus the demo-specific
+        # wallets, then start from a clean slate.
         call_command("seed_data", user=username, verbosity=0)
+        for name, kind in DEMO_WALLETS:
+            Wallet.objects.get_or_create(owner=user, name=name, defaults={"kind": kind})
         SavingsMovement.objects.filter(owner=user).delete()
         Transaction.objects.filter(owner=user).delete()
         CardStatement.objects.filter(owner=user).delete()
