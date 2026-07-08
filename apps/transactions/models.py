@@ -89,6 +89,16 @@ class Transaction(models.Model):
         related_name="transactions",
     )
 
+    # Set when this row came from a file import. CASCADE: deleting the import
+    # batch (the extracto) removes every movement it created.
+    import_batch = models.ForeignKey(
+        "imports.ImportBatch",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="transactions",
+    )
+
     # Shared expenses (e.g. a flat split with a roommate) — phase 3, optional.
     is_shared = models.BooleanField("compartido", default=False)
     shared_ratio = models.DecimalField(

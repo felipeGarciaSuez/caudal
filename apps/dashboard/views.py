@@ -1,9 +1,10 @@
+import csv
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import F, Q, Sum
-from django.http import HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -353,6 +354,45 @@ def settings_home(request):
             "error": error,
         },
     )
+
+
+@login_required
+def export_transactions_csv(request):
+    """Download every movement as a CSV backup (es-AR: ';' + comma decimals, so
+    it opens cleanly in Spanish Excel)."""
+    txs = (
+        Transaction.objects.filter(owner=request.user)
+        .select_related("wallet", "category")
+        .order_by("date", "id")
+    )
+    today = timezone.localdate().isoformat()
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="caudal-movimientos-{today}.csv"'
+    response.write("﻿")  # BOM so Excel detects UTF-8 (accents)
+    writer = csv.writer(response, delimiter=";")
+    writer.writerow(
+        ["Fecha", "Tipo", "Monto", "Billetera", "Categoría", "Descripción",
+         "Pagado", "Período", "Origen", "Cuota", "Mi parte", "Para revisar"]
+    )  # fmt: skip
+    for t in txs:
+        cuota = f"{t.installments_current}/{t.installments_total}" if t.installments_total else ""
+        writer.writerow(
+            [
+                t.date.isoformat(),
+                t.get_kind_display(),
+                f"{t.amount:.2f}".replace(".", ","),
+                t.wallet.name,
+                t.category.name if t.category else "",
+                t.description,
+                "sí" if t.is_paid else "no",
+                t.period,
+                t.get_source_display(),
+                cuota,
+                f"{t.shared_ratio:.3f}".replace(".", ","),
+                "sí" if t.needs_review else "no",
+            ]
+        )
+    return response
 
 
 @login_required
