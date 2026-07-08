@@ -110,6 +110,10 @@ class NormalizedRow:
     installments_current: int | None = None
     installments_total: int | None = None
     needs_review: bool = False
+    # Explicit YYYY-MM. Set by the card-statement PDF parser so every charge lands
+    # in the month you pay the statement, regardless of its purchase date. When
+    # None, the pipeline derives the period from `date`.
+    period: str | None = None
 
 
 class ParseError(Exception):
@@ -380,10 +384,140 @@ def parse_card_icbc(text: str, usd_rate: Decimal | None = None) -> list[Normaliz
     return rows
 
 
+# --- ICBC credit card, PDF statement (VISA) --------------------------------
+# The bank's CSV export is unreliable, so we read the official statement PDF.
+# A charge line looks like:
+#   19.06.26 002295* GRAELLS NELSON        C.01/06        30.000,00
+#   28.05.26 984659  GOOGLE *Google...     USD    1,99    1,99
+# The 6-digit voucher after the date is what tells a real purchase apart from
+# taxes/fees/payments (those have text, not a voucher, after the date).
+
+_VISA_TXN_RE = re.compile(r"^(\d{2})\.(\d{2})\.(\d{2})\s+(\d{6})\*?\s+(.+)$")
+_VISA_CUOTA_RE = re.compile(r"\bC\.(\d{2})/(\d{2})\b")
+# The "USD" currency marker can be glued to the auth code (e.g. "...TB USD" vs
+# "...in1TknlTBUSD"), so match it as a substring, not a whole word. No ARS
+# merchant in the statement contains "USD".
+_USD_MARK_RE = re.compile(r"USD")
+# Argentine money with a trailing '-' meaning a credit (payment/refund).
+_MONEY_SIGN_RE = re.compile(r"(\d{1,3}(?:\.\d{3})*,\d{2})(-?)")
+# A second "date voucher" inside one line: pypdf sometimes emits a charge twice.
+_VISA_DUP_RE = re.compile(r"\d{2}\.\d{2}\.\d{2}\s+\d{6}")
+
+
+def _visa_statement_period(text: str) -> str | None:
+    """The month you pay this statement: the latest dd.mm.yy in the body, which
+    is the closing/tax date. All charges get assigned to it."""
+    dates = []
+    for mo in re.finditer(r"\b(\d{2})\.(\d{2})\.(\d{2})\b", text):
+        d, m, y = (int(g) for g in mo.groups())
+        try:
+            dates.append(date(2000 + y, m, d))
+        except ValueError:
+            continue
+    if not dates:
+        return None
+    top = max(dates)
+    return f"{top.year:04d}-{top.month:02d}"
+
+
+def parse_card_icbc_pdf(text: str, usd_rate: Decimal | None = None) -> list[NormalizedRow]:
+    """Parse the text of an ICBC VISA statement PDF into charge rows.
+
+    Skips payments, refunds, taxes and fees; keeps real purchases (each with a
+    6-digit voucher). USD charges are valued with `usd_rate` (0 for review when
+    absent). Every charge is stamped with the statement period so it counts in
+    the month the statement is paid, not its purchase month.
+    """
+    period = _visa_statement_period(text)
+    rows: list[NormalizedRow] = []
+    seen: set[str] = set()
+    for raw in text.splitlines():
+        line = " ".join(raw.split())
+        m = _VISA_TXN_RE.match(line)
+        if not m:
+            continue
+        dd, mm, yy, comp, rest = m.groups()
+        # A duplicated line concatenates the same charge twice: keep the first.
+        dup = _VISA_DUP_RE.search(rest)
+        if dup:
+            rest = rest[: dup.start()]
+        try:
+            txn_date = date(2000 + int(yy), int(mm), int(dd))
+        except ValueError:
+            continue
+
+        cuota = _VISA_CUOTA_RE.search(rest)
+        cur, total = (int(cuota.group(1)), int(cuota.group(2))) if cuota else (None, None)
+
+        moneys = _MONEY_SIGN_RE.findall(rest)
+        if not moneys:
+            continue
+
+        detail = _MONEY_SIGN_RE.sub("", rest)
+        detail = _VISA_CUOTA_RE.sub("", detail)
+        detail = _USD_MARK_RE.sub("", detail)
+        merchant = clean_merchant(" ".join(detail.split()))
+
+        if _USD_MARK_RE.search(rest):
+            usd = parse_ar_amount(moneys[0][0])
+            if usd == 0:
+                continue
+            amount = (-usd * usd_rate).quantize(Decimal("0.01")) if usd_rate else Decimal("0")
+            description = f"{merchant} (US$ {usd})"
+        else:
+            num, sign = moneys[-1]  # pesos column
+            ars = parse_ar_amount(num)
+            if sign == "-" or ars == 0:
+                continue  # payment / refund / bonificación, not a purchase
+            amount = -ars
+            description = merchant
+
+        external_id = f"card:{comp}:{amount}"
+        if external_id in seen:
+            continue
+        seen.add(external_id)
+        rows.append(
+            NormalizedRow(
+                date=txn_date,
+                amount=amount,
+                description=description,
+                external_id=external_id,
+                installments_current=cur,
+                installments_total=total,
+                needs_review=True,
+                period=period,
+            )
+        )
+    return rows
+
+
+def extract_pdf_text(file_bytes: bytes) -> str:
+    """Extract text from a PDF. Raises ParseError if it can't be read."""
+    from io import BytesIO
+
+    try:
+        from pypdf import PdfReader
+    except ImportError as exc:  # pragma: no cover - dependency is declared
+        raise ParseError("Falta la librería para leer PDF (pypdf).") from exc
+    try:
+        reader = PdfReader(BytesIO(file_bytes))
+        return "\n".join((page.extract_text() or "") for page in reader.pages)
+    except Exception as exc:
+        raise ParseError("No se pudo leer el PDF (¿está protegido o dañado?).") from exc
+
+
 def parse_csv(
     file_bytes: bytes, source: str | None = None, usd_rate: Decimal | None = None
 ) -> list[NormalizedRow]:
-    """Parse CSV bytes into normalized rows, dispatching by source."""
+    """Parse an uploaded file into normalized rows, dispatching by source.
+
+    Accepts the ICBC card statement as PDF (the bank's CSV export is unreliable);
+    everything else is CSV.
+    """
+    if file_bytes[:5] == b"%PDF-":
+        if source == "card_icbc":
+            return parse_card_icbc_pdf(extract_pdf_text(file_bytes), usd_rate)
+        raise ParseError("El PDF solo se admite como resumen de tarjeta ICBC. Elegí esa fuente.")
     text = _decode(file_bytes)
     if not text.strip():
         raise ParseError("el archivo está vacío")

@@ -27,7 +27,7 @@
       <div class="field">{{ form.source }}</div>
       <label class="muted" style="font-size:.8rem">Billetera (DONDE)</label>
       <div class="field">{{ form.wallet }}</div>
-      <label class="muted" style="font-size:.8rem">Archivo .csv</label>
+      <label class="muted" style="font-size:.8rem">Archivo (.csv o .pdf de resumen)</label>
       <div class="field">{{ form.file }}</div>
       {% if form.errors %}
         <div class="flash err" style="margin-top:.6rem">
@@ -38,10 +38,11 @@
     </form>
     <p class="muted" style="font-size:.78rem;margin-bottom:0;margin-top:.9rem">
       Elegí la fuente: <b>Banco ICBC</b> y <b>Tarjeta ICBC</b> tienen su formato propio;
-      el resto detecta las columnas solo. Los consumos de <b>tarjeta</b> se agrupan en el
-      resumen de esa tarjeta (un gasto grande en el mes); entrás ahí para categorizar y
-      dividir cada uno. Los cargos en dólares se valúan con tu cotización. Las filas ya
-      importadas se omiten.
+      el resto detecta las columnas solo. Para <b>Tarjeta ICBC</b> subí el <b>PDF del
+      resumen</b> (VISA): todos sus consumos van al mes en que se paga el resumen. Se
+      agrupan en el resumen de esa tarjeta (un gasto grande en el mes); entrás ahí para
+      categorizar y dividir cada uno. Los cargos en dólares se valúan con tu cotización.
+      Las filas ya importadas se omiten.
     </p>
   </div>
 
