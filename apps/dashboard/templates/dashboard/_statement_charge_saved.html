@@ -1,0 +1,10 @@
+{% comment %}Response after saving one charge: the row swaps in place (keeping its
+position and the scroll), while the total and the "sin revisar" count refresh
+out-of-band. Avoids rebuilding the whole list (which jumped the scroll).{% endcomment %}
+{% include "dashboard/_statement_charge.html" %}
+<div class="hero" id="stmt-hero" hx-swap-oob="true">
+  {% include "dashboard/_statement_hero.html" %}
+</div>
+<div id="stmt-controls" hx-swap-oob="true">
+  {% include "dashboard/_statement_controls.html" %}
+</div>

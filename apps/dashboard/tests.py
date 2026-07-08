@@ -818,6 +818,60 @@ def test_statement_charge_update_sets_category_and_share(client_logged, user):
     assert "confirmado" in html
 
 
+def test_statement_charge_update_swaps_single_row_in_place(client_logged, user):
+    """Saving a charge returns just that row (+ total/count out-of-band), not the
+    whole list, so it keeps its position and the page does not scroll."""
+    card = _card(user)
+    edited = _card_charge(user, card, "10000")
+    other = _card_charge(user, card, "20000")
+    resp = client_logged.post(
+        reverse("dashboard:statement_charge_update", args=[edited.id]),
+        {"share_pct": "100"},
+    )
+    assert resp.status_code == 200
+    html = resp.content.decode()
+    # The edited row is present and targeted by its own id.
+    assert f'id="charge-{edited.id}"' in html
+    # The other charge's row is NOT re-rendered (single-row swap, not full list).
+    assert f'id="charge-{other.id}"' not in html
+    # Total and count refresh out-of-band.
+    assert "hx-swap-oob" in html
+    assert 'id="stmt-hero"' in html
+
+
+def test_statement_charge_update_keeps_pinned_period(client_logged, user):
+    """Confirming a charge must not move it out of its statement month.
+
+    Card charges are pinned to the statement's period even though the purchase
+    date is an earlier month. Saving on confirm must not re-derive the period
+    from the date, or the charge would vanish from the statement being reviewed.
+    """
+    card = _card(user)
+    # Purchase in January, billed on the July statement (period != date month).
+    tx = Transaction.objects.create(
+        owner=user,
+        wallet=card,
+        amount=Decimal("14000"),
+        kind=Transaction.Kind.EXPENSE,
+        date="2026-01-16",
+        needs_review=True,
+    )
+    Transaction.objects.filter(pk=tx.id).update(period="2026-07")
+    tx.refresh_from_db()
+    assert tx.period == "2026-07"
+
+    resp = client_logged.post(
+        reverse("dashboard:statement_charge_update", args=[tx.id]),
+        {"share_pct": "100"},
+    )
+    assert resp.status_code == 200
+    tx.refresh_from_db()
+    assert tx.period == "2026-07"  # still on the July statement, not January
+    assert tx.date.isoformat() == "2026-01-16"  # purchase date untouched
+    # The confirmed charge is still rendered in the July statement body.
+    assert str(tx.id) in resp.content.decode()
+
+
 def test_export_transactions_csv(client_logged, user, wallet, category):
     Transaction.objects.create(
         owner=user,

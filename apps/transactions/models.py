@@ -150,11 +150,21 @@ class Transaction(models.Model):
     def __str__(self):
         return f"{self.date} {self.get_kind_display()} {self.amount} ({self.description})"
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Snapshot the loaded date so save() can tell when it actually changes.
+        self._loaded_date = self.date
+
     def save(self, *args, **kwargs):
-        # Keep period in sync with date so monthly views never miss a row.
+        # Derive period from date so monthly views never miss a row, but never
+        # clobber a period that was pinned to a different month than the date:
+        # a credit-card statement bills a purchase in a later month, so its
+        # charges keep the statement's period even though their date is older.
+        # Only (re)derive when the period is unset or the date actually changed.
         # str() of a date is ISO (YYYY-MM-DD); slicing also tolerates str dates.
-        if self.date:
+        if self.date and (not self.period or self.date != self._loaded_date):
             self.period = str(self.date)[:7]
+        self._loaded_date = self.date
         super().save(*args, **kwargs)
 
     @property
