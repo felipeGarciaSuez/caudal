@@ -348,6 +348,56 @@ def test_run_import_card_pdf_keeps_statement_period(user, monkeypatch):
     assert tx.date == _date(2026, 1, 16)  # real purchase date kept (no +1 shift)
 
 
+# --- ICBC credit card, PDF statement (MASTER) ------------------------------
+
+# Synthetic MASTER statement text (post-pypdf), NOT real data. Different layout:
+# DD-Mmm-YY, 5-digit coupon, amounts without thousands separators, USD in parens.
+_MASTER_TEXT = (
+    "MASTERCARD PLATINUM\n"
+    "DETALLE DEL MES NRO CUPON PESOS DOLARES\n"
+    "FECHA Compras del Mes\n"
+    "15-Oct-25 SERVICIO EXT(USA,USD,   12,00) 00111        12,00\n"
+    "FECHA Débitos Automáticos\n"
+    "10-Oct-25 SEGURO00/0312345 00222        9999,50\n"
+    "FECHA Cuotas del Mes\n"
+    "05-Sep-25 TIENDA CUOTAS           02/06 00333        15000,00\n"
+    "20-Oct-25 PAGO CAJERO/INTERNET     -50000,00     -50000,00\n"
+    "TOTAL TITULAR EJEMPLO         24999,50         12,00\n"
+)
+
+
+def test_parse_card_master_pdf_charges_period_usd_and_cuota():
+    from apps.imports.parsers import parse_card_icbc_pdf
+
+    rows = parse_card_icbc_pdf(_MASTER_TEXT, usd_rate=Decimal("1000"))
+    by_id = {r.external_id: r for r in rows}
+
+    # Payment (no coupon) and the totals line are skipped.
+    assert len(rows) == 3
+    # Statement month = the month after the latest charge (15-Oct -> Nov).
+    assert {r.period for r in rows} == {"2025-11"}
+
+    usd = by_id["card:00111:-12000.00"]
+    assert usd.amount == Decimal("-12000.00")
+    assert "US$ 12.00" in usd.description
+
+    seguro = by_id["card:00222:-9999.50"]
+    assert seguro.amount == Decimal("-9999.50")  # no thousands separator in source
+
+    tienda = by_id["card:00333:-15000.00"]
+    assert (tienda.installments_current, tienda.installments_total) == (2, 6)
+
+
+def test_parse_card_pdf_autodetects_master_vs_visa():
+    from apps.imports.parsers import parse_card_icbc_pdf
+
+    # VISA text (from the block above) routes to the VISA parser; MASTER to MASTER.
+    visa = parse_card_icbc_pdf(_PDF_TEXT, usd_rate=Decimal("1000"))
+    master = parse_card_icbc_pdf(_MASTER_TEXT, usd_rate=Decimal("1000"))
+    assert {r.period for r in visa} == {"2026-07"}
+    assert {r.period for r in master} == {"2025-11"}
+
+
 def test_run_import_card_clamps_month_end():
     assert _shift_one_month(date(2026, 1, 31)).isoformat() == "2026-02-28"
     assert _shift_one_month(date(2026, 12, 15)).isoformat() == "2027-01-15"
