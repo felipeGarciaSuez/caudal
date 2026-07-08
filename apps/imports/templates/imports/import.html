@@ -12,6 +12,12 @@
   {% if error %}
     <div class="flash err">No se pudo importar: {{ error }}</div>
   {% endif %}
+  {% if result %}
+    <div class="flash ok">
+      Importadas {{ result.rows_imported }} de {{ result.rows_total }} fila{{ result.rows_total|pluralize }}.
+      {% if result.rows_skipped %}Se omitieron {{ result.rows_skipped }} duplicada{{ result.rows_skipped|pluralize }}.{% endif %}
+    </div>
+  {% endif %}
 
   <div class="card">
     <div class="section-title"><span>Subir archivo</span></div>

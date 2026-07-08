@@ -64,9 +64,6 @@ class ImportBatch(models.Model):
     rows_total = models.PositiveIntegerField("filas totales", default=0)
     rows_imported = models.PositiveIntegerField("filas importadas", default=0)
     rows_skipped = models.PositiveIntegerField("filas omitidas (duplicadas)", default=0)
-    # False while a preview is awaiting confirmation; True once its rows are saved.
-    # Unconfirmed batches are transient (cleaned up when the import page reloads).
-    confirmed = models.BooleanField("confirmada", default=True)
 
     class Meta:
         verbose_name = "importación"
