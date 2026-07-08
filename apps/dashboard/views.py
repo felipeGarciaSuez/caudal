@@ -558,7 +558,9 @@ def _statement_context(user, wallet, period: str) -> dict:
             owner=user, wallet=wallet, period=period, kind=Transaction.Kind.EXPENSE
         )
         .select_related("category")
-        .order_by("needs_review", "-date", "-id")
+        # Stable order (newest first), independent of review status, so
+        # confirming a charge never makes rows jump around the list.
+        .order_by("-date", "-id")
     )
     total = sum((t.own_amount for t in rows), Decimal("0.00")).quantize(Decimal("0.01"))
     statement = CardStatement.objects.filter(owner=user, wallet=wallet, period=period).first()
@@ -648,8 +650,11 @@ def statement_charge_update(request, tx_id):
     tx.is_shared = ratio < 1
     tx.needs_review = False  # confirmed
     tx.save()
+    # Swap only this row in place (+ total/count out-of-band) instead of the
+    # whole list, so the row keeps its position and the page does not scroll.
     context = _statement_context(request.user, tx.wallet, tx.period)
-    return render(request, "dashboard/_statement_body.html", context)
+    context["tx"] = tx
+    return render(request, "dashboard/_statement_charge_saved.html", context)
 
 
 @login_required
