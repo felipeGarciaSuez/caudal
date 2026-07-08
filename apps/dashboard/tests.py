@@ -872,6 +872,24 @@ def test_statement_charge_update_keeps_pinned_period(client_logged, user):
     assert str(tx.id) in resp.content.decode()
 
 
+def test_card_statement_delete_removes_all_charges_and_paid_record(client_logged, user):
+    """Deleting a statement wipes every charge in that wallet + period, even ones
+    not linked to an import batch, plus the paid record; then goes to the month."""
+    card = _card(user)
+    _card_charge(user, card, "10000")
+    _card_charge(user, card, "20000")
+    CardStatement.objects.create(owner=user, wallet=card, period="2026-06", is_paid=True)
+    # A charge on the same card but a different month must survive.
+    other = _card_charge(user, card, "5000", period="2026-07")
+
+    resp = client_logged.post(reverse("dashboard:card_statement_delete", args=[card.id, "2026-06"]))
+    assert resp.status_code == 302
+    assert resp.url == reverse("dashboard:month", args=["2026-06"])
+    assert not Transaction.objects.filter(owner=user, wallet=card, period="2026-06").exists()
+    assert not CardStatement.objects.filter(owner=user, wallet=card, period="2026-06").exists()
+    assert Transaction.objects.filter(pk=other.id).exists()  # other month untouched
+
+
 def test_export_transactions_csv(client_logged, user, wallet, category):
     Transaction.objects.create(
         owner=user,

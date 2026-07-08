@@ -36,6 +36,11 @@ urlpatterns = [
         name="statement_confirm_all",
     ),
     path(
+        "statement/<int:wallet_id>/<str:period>/delete/",
+        views.card_statement_delete,
+        name="card_statement_delete",
+    ),
+    path(
         "statement/charge/<int:tx_id>/",
         views.statement_charge_update,
         name="statement_charge_update",
