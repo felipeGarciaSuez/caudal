@@ -1,0 +1,16 @@
+{% load money icons %}
+{% comment %}Statement total + paid toggle. Kept in its own partial so a single-charge
+save can refresh the total out-of-band without rebuilding the whole list.{% endcomment %}
+<div class="k">Total del resumen</div>
+<div class="v {% if is_paid %}pos{% else %}neg{% endif %}">
+  <span class="cur">$</span><span class="tnum">{{ total|money }}</span>
+</div>
+<div class="legend">
+  <span>{{ count }} consumo{{ count|pluralize }}{% if unreviewed %} · {{ unreviewed }} sin revisar{% endif %}</span>
+</div>
+<button class="btn {% if is_paid %}btn-primary{% endif %}" style="margin-top:.8rem;width:100%"
+        hx-post="{% url 'dashboard:toggle_statement_paid' wallet.id period %}"
+        hx-vals='{"scope":"statement"}'
+        hx-target="#statement-body" hx-swap="innerHTML">
+  {% icon "check" "icon" %} {% if is_paid %}Pagado (tocar para desmarcar){% else %}Marcar como pagado{% endif %}
+</button>

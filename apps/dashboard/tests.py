@@ -818,6 +818,27 @@ def test_statement_charge_update_sets_category_and_share(client_logged, user):
     assert "confirmado" in html
 
 
+def test_statement_charge_update_swaps_single_row_in_place(client_logged, user):
+    """Saving a charge returns just that row (+ total/count out-of-band), not the
+    whole list, so it keeps its position and the page does not scroll."""
+    card = _card(user)
+    edited = _card_charge(user, card, "10000")
+    other = _card_charge(user, card, "20000")
+    resp = client_logged.post(
+        reverse("dashboard:statement_charge_update", args=[edited.id]),
+        {"share_pct": "100"},
+    )
+    assert resp.status_code == 200
+    html = resp.content.decode()
+    # The edited row is present and targeted by its own id.
+    assert f'id="charge-{edited.id}"' in html
+    # The other charge's row is NOT re-rendered (single-row swap, not full list).
+    assert f'id="charge-{other.id}"' not in html
+    # Total and count refresh out-of-band.
+    assert "hx-swap-oob" in html
+    assert 'id="stmt-hero"' in html
+
+
 def test_statement_charge_update_keeps_pinned_period(client_logged, user):
     """Confirming a charge must not move it out of its statement month.
 
