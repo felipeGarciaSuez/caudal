@@ -4,7 +4,7 @@
 
 {% block content %}
   <header class="topbar">
-    <div class="wordmark-sm">{% icon "wallet" "icon" %} Caudal</div>
+    {% include "partials/brandmark.html" %}
     <form method="post" action="{% url 'logout' %}">
       {% csrf_token %}
       <button class="icon-btn" type="submit" aria-label="Cerrar sesión">{% icon "log-out" "icon" %}</button>
