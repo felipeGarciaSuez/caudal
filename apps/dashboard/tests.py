@@ -818,6 +818,26 @@ def test_statement_charge_update_sets_category_and_share(client_logged, user):
     assert "confirmado" in html
 
 
+def test_export_transactions_csv(client_logged, user, wallet, category):
+    Transaction.objects.create(
+        owner=user,
+        wallet=wallet,
+        category=category,
+        amount=Decimal("3500.50"),
+        kind=Transaction.Kind.EXPENSE,
+        date="2026-06-05",
+        description="Cafecito",
+    )
+    resp = client_logged.get(reverse("dashboard:export_csv"))
+    assert resp.status_code == 200
+    assert resp["Content-Type"].startswith("text/csv")
+    assert "attachment" in resp["Content-Disposition"]
+    body = resp.content.decode("utf-8")
+    assert "Fecha;Tipo;Monto" in body  # es-AR: semicolon-delimited
+    assert "Cafecito" in body
+    assert "3500,50" in body  # comma decimals for Spanish Excel
+
+
 def test_statement_confirm_all_clears_review_on_every_charge(client_logged, user):
     card = _card(user)
     _card_charge(user, card, "10000", needs_review=True)

@@ -7,6 +7,7 @@ app_name = "dashboard"
 urlpatterns = [
     path("", views.home, name="home"),
     path("ajustes/", views.settings_home, name="settings"),
+    path("export/movimientos.csv", views.export_transactions_csv, name="export_csv"),
     path("m/<str:period>/", views.month_view, name="month"),
     path("add/", views.add_transaction, name="add_transaction"),
     path("m/<str:period>/income/", views.set_income, name="set_income"),
