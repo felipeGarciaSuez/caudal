@@ -811,6 +811,37 @@ def test_statement_charge_update_sets_category_and_share(client_logged, user):
     assert tx.is_shared is True
     assert tx.needs_review is False
     assert tx.own_amount == Decimal("5000.00")
+    # After confirming, the row collapses: "Guardar" gives way to the "Editar"
+    # toggle and a "confirmado" badge so it clearly reads as done.
+    html = resp.content.decode()
+    assert "btn-edit" in html
+    assert "confirmado" in html
+
+
+def test_statement_confirm_all_clears_review_on_every_charge(client_logged, user):
+    card = _card(user)
+    _card_charge(user, card, "10000", needs_review=True)
+    _card_charge(user, card, "20000", needs_review=True)
+    already = _card_charge(user, card, "5000", needs_review=False)
+    resp = client_logged.post(reverse("dashboard:statement_confirm_all", args=[card.id, "2026-06"]))
+    assert resp.status_code == 200
+    assert Transaction.objects.filter(owner=user, wallet=card, needs_review=True).count() == 0
+    # Confirming all does not touch amounts of the already-confirmed one.
+    already.refresh_from_db()
+    assert already.amount == Decimal("5000")
+    # The re-rendered body no longer offers "Guardar todo".
+    assert "Guardar todo" not in resp.content.decode()
+
+
+def test_statement_body_shows_editar_only_for_confirmed(client_logged, user):
+    card = _card(user)
+    _card_charge(user, card, "10000", needs_review=True)  # sin revisar
+    confirmed = _card_charge(user, card, "20000", needs_review=False)  # ya confirmado
+    resp = client_logged.get(reverse("dashboard:card_statement", args=[card.id, "2026-06"]))
+    html = resp.content.decode()
+    assert "sin revisar" in html  # the unreviewed one
+    assert "btn-edit" in html  # the confirmed one exposes an Editar toggle
+    assert str(confirmed.id) in html
 
 
 def test_statement_charge_share_zero_percent_is_not_ours(client_logged, user):
