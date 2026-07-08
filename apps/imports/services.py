@@ -101,7 +101,10 @@ def run_import(*, owner, wallet, source: str, file) -> ImportResult:
         )
     if is_card:
         for row in rows:
-            row.date = _shift_one_month(row.date)
+            # The PDF statement already carries its own period (the month it's
+            # paid); only the CSV export needs its purchase dates shifted forward.
+            if row.period is None:
+                row.date = _shift_one_month(row.date)
 
     categorizer = _Categorizer(owner)
 
@@ -147,7 +150,8 @@ def run_import(*, owner, wallet, source: str, file) -> ImportResult:
                 needs_review=row.needs_review,
                 # bulk_create bypasses Transaction.save(), so set the denormalised
                 # YYYY-MM period here (save() would otherwise derive it from date).
-                period=str(row.date)[:7],
+                # A card-statement PDF pins an explicit period; else derive from date.
+                period=row.period or str(row.date)[:7],
             )
         )
 

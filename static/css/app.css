@@ -190,6 +190,8 @@ a.chev { text-decoration: none; display: inline-grid; place-items: center; }
 .btn:active { transform: scale(.99); }
 .btn-primary { background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #04231b; border-color: transparent; }
 .btn.danger { color: var(--neg); border-color: color-mix(in srgb, var(--neg) 45%, var(--line)); background: color-mix(in srgb, var(--neg) 10%, transparent); }
+/* Edit a already-confirmed item: distinct from the green "Guardar" and red danger. */
+.btn-edit { color: var(--fixed); border-color: color-mix(in srgb, var(--fixed) 45%, var(--line)); background: color-mix(in srgb, var(--fixed) 12%, transparent); }
 .config-link { display: flex; align-items: center; gap: .5rem; justify-content: center;
   color: var(--muted); font-weight: 600; font-size: .9rem; text-decoration: none;
   padding: .9rem; margin-top: .2rem; }
@@ -425,6 +427,8 @@ a.chev { text-decoration: none; display: inline-grid; place-items: center; }
 
 .rev-list { list-style: none; margin: 0; padding: 0; }
 .rev-item { margin-bottom: .8rem; }
+/* Confirmed charge: green accent so it clearly reads as done. */
+.rev-item.confirmed { border-color: color-mix(in srgb, var(--brand) 32%, var(--line)); }
 .rev-top { display: flex; align-items: flex-start; gap: .7rem; margin-bottom: .7rem; }
 .rev-main { flex: 1; min-width: 0; }
 .rev-name { font-weight: 700; }

@@ -20,8 +20,8 @@ class ImportUploadForm(forms.Form):
     def clean_file(self):
         f = self.cleaned_data["file"]
         name = (f.name or "").lower()
-        if not name.endswith(".csv"):
-            raise forms.ValidationError("Por ahora solo se admiten archivos .csv")
+        if not name.endswith((".csv", ".pdf")):
+            raise forms.ValidationError("Se admiten archivos .csv o .pdf (resumen de tarjeta).")
         if f.size > 5 * 1024 * 1024:
             raise forms.ValidationError("El archivo es demasiado grande (máx. 5 MB).")
         return f
