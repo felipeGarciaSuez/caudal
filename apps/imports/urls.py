@@ -6,8 +6,6 @@ app_name = "imports"
 
 urlpatterns = [
     path("", views.import_view, name="import"),
-    path("<int:batch_id>/confirm/", views.import_confirm, name="import_confirm"),
-    path("<int:batch_id>/cancel/", views.import_cancel, name="import_cancel"),
     path("<int:batch_id>/delete/", views.import_delete, name="import_delete"),
     path("rules/", views.rules_home, name="rules"),
     path("rules/add/", views.add_rule, name="add_rule"),

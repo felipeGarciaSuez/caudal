@@ -74,25 +74,21 @@ class _Categorizer:
         return None
 
 
-def _read_file(file) -> tuple[bytes, object | None]:
-    """Return (bytes, stored_file). `file` may be an uploaded file or raw bytes;
-    stored_file is the uploaded file to keep on the batch, or None for bytes."""
+def run_import(*, owner, wallet, source: str, file) -> ImportResult:
+    """Parse, dedupe, categorize and persist an import in one shot.
+
+    `file` may be an uploaded file (kept on the batch) or raw bytes. Raises
+    ParseError on a bad file. Every created row is linked to its ImportBatch, so
+    deleting the batch cascades its movements away.
+    """
     if hasattr(file, "read"):
         file_bytes = file.read()
         if hasattr(file, "seek"):
             file.seek(0)  # rewind so it can be stored on the batch
-        return file_bytes, (file if getattr(file, "name", None) else None)
-    return file, None
+        stored_file = file if getattr(file, "name", None) else None
+    else:
+        file_bytes, stored_file = file, None
 
-
-def prepare_import(
-    *, owner, wallet, source: str, file_bytes: bytes
-) -> tuple[list[Transaction], int, int]:
-    """Parse and dedupe an import into unsaved Transaction rows. No DB writes.
-
-    Returns (to_create, rows_total, skipped). Raises ParseError on a bad file.
-    This is the preview step; `commit_import` persists the result.
-    """
     is_card = source == ImportBatch.Source.CARD_ICBC
     # USD card charges are valued with the manual dollar price (fase 4).
     usd_rate = current_dollar_price(owner) if is_card else None
@@ -157,39 +153,29 @@ def prepare_import(
                 period=row.period or str(row.date)[:7],
             )
         )
-    return to_create, len(rows), skipped
 
-
-def commit_import(*, batch: ImportBatch, to_create: list[Transaction]) -> ImportResult:
-    """Persist prepared rows against `batch` and mark it confirmed."""
     with db_transaction.atomic():
+        batch = ImportBatch(
+            owner=owner,
+            wallet=wallet,
+            source=source,
+            rows_total=len(rows),
+            rows_imported=len(to_create),
+            rows_skipped=skipped,
+        )
+        if stored_file is not None:
+            batch.file = stored_file
+        batch.save()
         for tx in to_create:
             tx.import_batch = batch
-        batch.rows_imported = len(to_create)
-        batch.confirmed = True
-        batch.save(update_fields=["rows_imported", "confirmed"])
         Transaction.objects.bulk_create(to_create)
+
     return ImportResult(
         batch=batch,
-        rows_total=batch.rows_total,
+        rows_total=len(rows),
         rows_imported=len(to_create),
-        rows_skipped=batch.rows_skipped,
+        rows_skipped=skipped,
     )
 
 
-def run_import(*, owner, wallet, source: str, file) -> ImportResult:
-    """Parse and import in one shot (no preview). Kept for tests/programmatic use."""
-    file_bytes, stored_file = _read_file(file)
-    to_create, rows_total, skipped = prepare_import(
-        owner=owner, wallet=wallet, source=source, file_bytes=file_bytes
-    )
-    batch = ImportBatch(
-        owner=owner, wallet=wallet, source=source, rows_total=rows_total, rows_skipped=skipped
-    )
-    if stored_file is not None:
-        batch.file = stored_file
-    batch.save()
-    return commit_import(batch=batch, to_create=to_create)
-
-
-__all__ = ["prepare_import", "commit_import", "run_import", "ImportResult", "ParseError"]
+__all__ = ["run_import", "ImportResult", "ParseError"]
