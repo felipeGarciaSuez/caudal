@@ -23,6 +23,15 @@
     tick de arriba es solo para saber si lo pagaste.
   </p>
 
+  {% if unreviewed %}
+    <button class="btn" style="margin-bottom:1rem"
+            hx-post="{% url 'dashboard:statement_confirm_all' wallet.id period %}"
+            hx-target="#statement-body" hx-swap="innerHTML"
+            hx-confirm="¿Confirmar los {{ unreviewed }} consumos sin revisar tal como están (con la categoría sugerida y mi parte 100%)?">
+      {% icon "check" "icon" %} Guardar todo ({{ unreviewed }} sin revisar)
+    </button>
+  {% endif %}
+
   {% if rows %}
     <ul class="rev-list">
       {% for tx in rows %}
