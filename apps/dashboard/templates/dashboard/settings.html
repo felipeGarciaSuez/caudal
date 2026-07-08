@@ -36,6 +36,16 @@
     </a>
   </div>
 
+  <div class="card">
+    <div class="section-title"><span>Datos</span></div>
+    <a class="config-link" href="{% url 'dashboard:export_csv' %}">
+      {% icon "download" "icon" %} Exportar movimientos (CSV) {% icon "chevron-right" "icon" %}
+    </a>
+    <span class="hint muted" style="display:block;margin-top:.5rem">
+      Descarga todos tus movimientos como copia de respaldo. Se abre en Excel.
+    </span>
+  </div>
+
   <form method="post" class="card" x-data="{ auto: {{ auto_big_expenses|yesno:'true,false' }} }">
     {% csrf_token %}
     <div class="section-title"><span>Gastos grandes y hormiga</span></div>
