@@ -811,6 +811,22 @@ def test_statement_charge_update_sets_category_and_share(client_logged, user):
     assert tx.is_shared is True
     assert tx.needs_review is False
     assert tx.own_amount == Decimal("5000.00")
+    # After confirming, the row collapses: "Guardar" gives way to the "Editar"
+    # toggle and a "confirmado" badge so it clearly reads as done.
+    html = resp.content.decode()
+    assert "btn-edit" in html
+    assert "confirmado" in html
+
+
+def test_statement_body_shows_editar_only_for_confirmed(client_logged, user):
+    card = _card(user)
+    _card_charge(user, card, "10000", needs_review=True)  # sin revisar
+    confirmed = _card_charge(user, card, "20000", needs_review=False)  # ya confirmado
+    resp = client_logged.get(reverse("dashboard:card_statement", args=[card.id, "2026-06"]))
+    html = resp.content.decode()
+    assert "sin revisar" in html  # the unreviewed one
+    assert "btn-edit" in html  # the confirmed one exposes an Editar toggle
+    assert str(confirmed.id) in html
 
 
 def test_statement_charge_share_zero_percent_is_not_ours(client_logged, user):

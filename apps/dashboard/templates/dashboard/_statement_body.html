@@ -26,7 +26,8 @@
   {% if rows %}
     <ul class="rev-list">
       {% for tx in rows %}
-        <li class="card rev-item {% if tx.needs_review %}pending{% endif %}">
+        <li class="card rev-item {% if tx.needs_review %}pending{% else %}confirmed{% endif %}"
+            x-data="{ edit: {% if tx.needs_review %}true{% else %}false{% endif %} }">
           <div class="rev-top">
             <div class="rev-main">
               <div class="rev-name">{{ tx.description|default:tx.category|default:"(sin descripción)" }}</div>
@@ -37,13 +38,25 @@
                 {% endif %}
                 {% if tx.category %}<span class="badge">{{ tx.category.name }}</span>{% endif %}
                 {% if tx.is_shared %}<span class="badge">mi parte $ {{ tx.own_amount|money:0 }}</span>{% endif %}
-                {% if tx.needs_review %}<span class="badge warn">sin revisar</span>{% endif %}
+                {% if tx.needs_review %}
+                  <span class="badge warn">sin revisar</span>
+                {% else %}
+                  <span class="badge ok">{% icon "check" "icon" %} confirmado</span>
+                {% endif %}
               </div>
             </div>
             <div class="rev-amt tnum">$ {{ tx.amount|money:0 }}</div>
           </div>
 
-          <form hx-post="{% url 'dashboard:statement_charge_update' tx.id %}"
+          {% if not tx.needs_review %}
+            {# Confirmed: collapsed. The green "Guardar" is replaced by a violet "Editar" toggle. #}
+            <button type="button" class="btn btn-edit" x-show="!edit" @click="edit = true">
+              {% icon "pencil" "icon" %} Editar
+            </button>
+          {% endif %}
+
+          <form x-show="edit" {% if not tx.needs_review %}x-cloak{% endif %}
+                hx-post="{% url 'dashboard:statement_charge_update' tx.id %}"
                 hx-target="#statement-body" hx-swap="innerHTML">
             <div class="two-col">
               <div class="field">

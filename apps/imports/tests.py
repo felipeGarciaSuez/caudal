@@ -3,6 +3,7 @@ from decimal import Decimal
 from io import BytesIO
 
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
 from apps.imports.models import CategoryRule, ImportBatch
@@ -283,6 +284,40 @@ def test_run_import_bank_icbc_keeps_original_month(user):
 def client_logged(client, user):
     client.force_login(user)
     return client
+
+
+def test_import_card_redirects_to_statement_review(client_logged, user):
+    card = Wallet.objects.create(owner=user, name="ICBC Visa", kind=Wallet.Kind.CREDIT_CARD)
+    text = (
+        "Fecha;Comercio;Comprobante;Importe $;Importe U$S\n"
+        "Consumos Tarjeta:123\n"
+        "19/06/2026;SERVICIO CUOTA 01/06;00000001;30000.0;0.00\n"
+    )
+    resp = client_logged.post(
+        reverse("imports:import"),
+        {
+            "wallet": card.id,
+            "source": "card_icbc",
+            "file": SimpleUploadedFile("resumen.csv", text.encode()),
+        },
+    )
+    # A statement import jumps straight to its review screen (charges shift +1 month).
+    assert resp.status_code == 302
+    assert resp.url == reverse("dashboard:card_statement", args=[card.id, "2026-07"])
+
+
+def test_import_non_card_stays_on_import_page(client_logged, user):
+    mp = Wallet.objects.create(owner=user, name="Mercado Pago", kind=Wallet.Kind.WALLET)
+    text = "Fecha;Descripción;Monto\n10/06/2026;KIOSCO;-1500\n"
+    resp = client_logged.post(
+        reverse("imports:import"),
+        {
+            "wallet": mp.id,
+            "source": "generic_csv",
+            "file": SimpleUploadedFile("mp.csv", text.encode()),
+        },
+    )
+    assert resp.status_code == 200  # no redirect: shows the result inline
 
 
 # --- CRUD de reglas de categorización (Ajustes) ----------------------------
