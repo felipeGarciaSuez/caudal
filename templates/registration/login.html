@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% load icons %}
+{% load icons static %}
 {% block title %}Ingresar — Caudal{% endblock %}
 
 {% block content %}
   <div class="login">
     <div class="brand">
-      <div class="logo">{% icon "wallet" "icon" %}</div>
+      <img class="logo" src="{% static 'brand/caudal-mark.svg' %}" alt="" width="66" height="66">
       <div class="wordmark">Caudal</div>
       <div class="tagline">Tus finanzas, sin gastos hormiga sueltos.</div>
     </div>

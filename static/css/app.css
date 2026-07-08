@@ -251,6 +251,7 @@ a.chev { text-decoration: none; display: inline-grid; place-items: center; }
 .topbar { display: flex; align-items: center; justify-content: space-between; margin: .2rem 0 .8rem; }
 .wordmark-sm { display: inline-flex; align-items: center; gap: .4rem; font-weight: 800; letter-spacing: .2px; }
 .wordmark-sm .icon { color: var(--brand); width: 20px; height: 20px; }
+.wordmark-sm img { width: 22px; height: 22px; border-radius: 6px; display: block; }
 .icon-btn { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px;
   background: var(--surface); border: 1px solid var(--line); color: var(--muted); cursor: pointer; }
 .icon-btn .icon { width: 20px; height: 20px; }
@@ -258,10 +259,8 @@ a.chev { text-decoration: none; display: inline-grid; place-items: center; }
 /* ---------- Login ---------- */
 .login { min-height: 78vh; display: flex; flex-direction: column; justify-content: center; }
 .login .brand { text-align: center; margin-bottom: 1.6rem; }
-.login .logo { width: 66px; height: 66px; margin: 0 auto .7rem; display: grid; place-items: center;
-  border-radius: 20px; background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #04231b;
-  box-shadow: 0 14px 30px -8px rgba(52,226,176,.5); }
-.login .logo .icon { width: 34px; height: 34px; }
+.login .logo { width: 66px; height: 66px; margin: 0 auto .7rem; display: block;
+  border-radius: 18px; box-shadow: 0 14px 30px -8px rgba(52,226,176,.5); }
 .login .wordmark { font-size: 1.9rem; font-weight: 800; letter-spacing: -.5px; }
 .login .tagline { color: var(--muted); font-size: .88rem; margin-top: .25rem; }
 .login .fld { display: flex; align-items: center; gap: .6rem; background: var(--bg-1);
