@@ -631,6 +631,19 @@ def statement_confirm_all(request, wallet_id, period):
 
 @login_required
 @require_POST
+def card_statement_delete(request, wallet_id, period):
+    """Delete a whole card statement: every charge in this wallet + period, plus
+    its paid record. Works on any statement (matches by wallet + period), so it
+    also cleans up imports made before movements were linked to their batch.
+    """
+    wallet = _get_card_wallet(request.user, wallet_id)
+    Transaction.objects.filter(owner=request.user, wallet=wallet, period=period).delete()
+    CardStatement.objects.filter(owner=request.user, wallet=wallet, period=period).delete()
+    return redirect("dashboard:month", period=period)
+
+
+@login_required
+@require_POST
 def statement_charge_update(request, tx_id):
     """Set category + 'mi parte' on one card charge, from the statement detail."""
     tx = get_object_or_404(
