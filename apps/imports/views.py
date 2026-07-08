@@ -1,10 +1,11 @@
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from apps.transactions.models import Category
+from apps.transactions.models import Category, Transaction
+from apps.wallets.models import Wallet
 
 from .forms import ImportUploadForm
 from .models import CategoryRule, ImportBatch
@@ -17,6 +18,16 @@ def _add_href() -> str:
     return reverse("dashboard:month", args=[period]) + "#add-card"
 
 
+def _statement_review_period(wallet) -> str | None:
+    """Period to jump to after importing a card statement: the most recent one
+    with unreviewed charges, else the most recent charge overall."""
+    base = Transaction.objects.filter(wallet=wallet)
+    return (
+        base.filter(needs_review=True).order_by("-period").values_list("period", flat=True).first()
+        or base.order_by("-period").values_list("period", flat=True).first()
+    )
+
+
 @login_required
 def import_view(request):
     result = None
@@ -24,16 +35,25 @@ def import_view(request):
     if request.method == "POST":
         form = ImportUploadForm(request.POST, request.FILES, owner=request.user)
         if form.is_valid():
+            wallet = form.cleaned_data["wallet"]
             try:
                 result = run_import(
                     owner=request.user,
-                    wallet=form.cleaned_data["wallet"],
+                    wallet=wallet,
                     source=form.cleaned_data["source"],
                     file=form.cleaned_data["file"],
                 )
             except ParseError as exc:
                 error = str(exc)
             else:
+                # A statement import lands its charges as "sin revisar"; take the
+                # user straight to the review screen to confirm them.
+                if wallet.kind == Wallet.Kind.CREDIT_CARD and result.rows_imported:
+                    period = _statement_review_period(wallet)
+                    if period:
+                        return redirect(
+                            "dashboard:card_statement", wallet_id=wallet.id, period=period
+                        )
                 form = ImportUploadForm(owner=request.user)  # reset on success
     else:
         form = ImportUploadForm(owner=request.user)
