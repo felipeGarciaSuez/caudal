@@ -362,6 +362,17 @@ a.chev { text-decoration: none; display: inline-grid; place-items: center; }
   border: 1.5px solid var(--line); border-radius: 12px; padding: .6rem .75rem; font-size: .92rem; }
 .save-form .field input:focus { outline: none; border-color: var(--brand); }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-bottom: .55rem; }
+/* Money input (label + boxed $ field) used in the month income sources. */
+.money-field { display: flex; flex-direction: column; gap: .25rem; }
+.money-field > label { color: var(--muted); font-size: .74rem; font-weight: 600; }
+.money-field .money-input { display: flex; align-items: center; gap: .35rem; background: var(--bg-1);
+  border: 1.5px solid var(--line); border-radius: 12px; padding: .55rem .7rem; }
+.money-field .money-input:focus-within { border-color: var(--brand); }
+.money-field .money-input .cur { color: var(--faint); font-size: .9rem; }
+.money-field .money-input input { width: 100%; border: none; background: transparent; color: var(--text);
+  font-size: .95rem; font-weight: 600; font-variant-numeric: tabular-nums; padding: 0; min-width: 0; }
+.money-field .money-input input:focus { outline: none; }
+.money-field .money-input input::placeholder { color: var(--faint); font-weight: 400; font-size: .82rem; }
 .save-form .btn-primary { width: 100%; margin-top: .3rem; }
 .save-form .hint { font-size: .74rem; margin: .55rem 0 0; }
 
