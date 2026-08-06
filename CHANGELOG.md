@@ -4,6 +4,51 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado según [SemVer](https://semver.org/lang/es/) — criterio detallado en
 [`CLAUDE.md`](./CLAUDE.md#10-versionado-y-ramas).
 
+## [1.3.0] — 2026-08-06
+
+Login con Google, ingresos con varias fuentes (sueldo + extras), importadores de
+resumen de tarjeta ICBC VISA y MASTERCARD desde PDF, y salida a producción en un
+VPS con Docker.
+
+### Agregado
+- **Login con Google** (django-allauth): botón en el login, alta y vinculación
+  por email, convive con el login usuario/contraseña. Credenciales por `.env`
+  (`GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_SECRET`); si faltan, el botón no aparece.
+- **Múltiples fuentes de ingreso** por mes (`budgets.IncomeSource`): sueldo +
+  extras (freelance, alquiler…), cada una con monto **esperado** y **cobrado**.
+  El RESTO SUELDO se calcula sobre el total planeado. Pantalla dedicada editable.
+- **Importadores de resumen de tarjeta ICBC desde PDF**: **VISA** y **MASTERCARD**
+  (cuotas, cargos en USD, dedupe). Revisión de extracto con "Guardar todo" y
+  confirmación por consumo; botón para eliminar el resumen entero desde su detalle.
+- **Aviso de bloqueo estilizado** (en español, con la marca) cuando django-axes
+  bloquea el login por demasiados intentos.
+- **Dockerización para producción en VPS**: `docker-compose.prod.yml` (web +
+  Postgres), entrypoint que corre migraciones, healthcheck, límites de
+  memoria/CPU, detrás de Caddy.
+- **Auto-seed** de datos base al crear un usuario y comando **`seed_demo`** (mes
+  de ejemplo en una cuenta demo).
+- **Export CSV** de movimientos.
+- **Páginas de error 404/500** con la identidad de Caudal.
+- **Marca**: favicon, PWA manifest, isotipo y bundle de identidad visual.
+
+### Cambiado
+- **Importador VISA**: el período se toma de la fecha de **vencimiento**
+  (VENCIMIENTO ACTUAL), no del cierre, para que los consumos cuenten en el mes en
+  que se paga el resumen.
+- **Importación sin vista previa**: los movimientos entran directo (con dedupe),
+  sin pantalla intermedia.
+- En la revisión del resumen, **guardar un consumo no reordena la lista ni saltea
+  el scroll**.
+
+### Corregido
+- Isotipo desincronizado entre páginas (marca centralizada en un partial único).
+- Bit de ejecutable del `docker-entrypoint.sh`.
+- django-axes leyendo la IP real detrás del proxy en producción.
+
+### Migraciones
+- `budgets`: `IncomeSource`.
+- `sites`, `account`, `socialaccount` (django-allauth).
+
 ## [1.2.0] — 2026-07-07
 
 Rework de la clasificación grande/hormiga (ahora por monto), gastos grandes
