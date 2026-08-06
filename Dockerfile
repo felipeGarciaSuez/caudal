@@ -40,6 +40,12 @@ COPY --from=builder /app/.venv /app/.venv
 
 COPY . .
 
+# Red de seguridad para el bit de ejecutable: git en Windows no lo rastrea por
+# defecto, así que un clon puede traer el entrypoint sin permiso de ejecución
+# y el contenedor muere con "permission denied" antes de arrancar. El modo
+# correcto ya está en el índice de git; esto lo hace independiente de eso.
+RUN chmod +x /app/docker-entrypoint.sh
+
 # collectstatic en build y no en cada arranque: es determinístico y no toca
 # la base. Pero config/settings/prod.py lee SECRET_KEY, ALLOWED_HOSTS y
 # DATABASE_URL al importarse y explota si faltan, así que hay que pasarle
