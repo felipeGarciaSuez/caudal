@@ -52,7 +52,13 @@ WhatsApp es donde ya esta el usuario; hablar es mas rapido que abrir la app y ti
 
 ---
 
-## 2. Multiples fuentes de ingreso (sueldo + extras)
+## 2. Multiples fuentes de ingreso (sueldo + extras) [HECHO]
+
+> Implementado: modelo `budgets.IncomeSource` (esperado + cobrado por mes),
+> `MonthlyBudget.income_planned` / `income_received`, el RESTO SUELDO ahora va
+> sobre el total planeado, y pantalla `dashboard:month_income` para desglosar en
+> fuentes (editable inline por HTMX, plan vs cobrado). Con tests y verificado en
+> el server real.
 
 **Que:** hoy el mes tiene un solo ingreso esperado (`MonthlyBudget.expected_income`,
 pensado como "el sueldo"). Permitir documentar **varias fuentes**: sueldo + ingreso
