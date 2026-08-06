@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load icons timefmt %}
+{% block title %}Cuenta bloqueada — Caudal{% endblock %}
+
+{% block content %}
+  <div class="login">
+    <div class="brand">
+      {% include "partials/brandlogo.html" %}
+      <div class="wordmark">Caudal</div>
+      <div class="tagline">Tus finanzas, sin gastos hormiga sueltos.</div>
+    </div>
+
+    <div class="card">
+      <div class="flash err">
+        <span class="ic">{% icon "lock-keyhole" "icon" %}</span>
+        Bloqueamos el ingreso por seguridad tras varios intentos fallidos.
+      </div>
+      <p class="lockout-note">
+        {% if cooloff_timedelta %}
+          Probá de nuevo en {{ cooloff_timedelta|duration_es }}.
+        {% else %}
+          Probá de nuevo más tarde.
+        {% endif %}
+      </p>
+      <a class="btn btn-primary" href="{% url 'login' %}">Volver a ingresar</a>
+    </div>
+  </div>
+{% endblock %}
+
+{% block tabbar %}{% endblock %}

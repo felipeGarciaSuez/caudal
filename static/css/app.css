@@ -273,6 +273,7 @@ a.chev { text-decoration: none; display: inline-grid; place-items: center; }
 .login .fld .input { border: none; background: transparent; padding: .8rem 0; }
 .login .fld .input:focus { outline: none; }
 .login .btn-primary { margin-top: .4rem; }
+.login .lockout-note { color: var(--muted); font-size: .92rem; margin: .2rem 0 1rem; }
 
 /* ---------- Fixed-expenses checklist ---------- */
 [x-cloak] { display: none !important; }

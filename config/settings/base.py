@@ -122,6 +122,8 @@ AXES_FAILURE_LIMIT = env.int("AXES_FAILURE_LIMIT", default=5)
 AXES_COOLOFF_TIME = env.int("AXES_COOLOFF_HOURS", default=1)  # hours until auto-release
 AXES_LOCKOUT_PARAMETERS = ["ip_address"]
 AXES_RESET_ON_SUCCESS = True
+# Branded, Spanish lockout page instead of the default plain-text response.
+AXES_LOCKOUT_TEMPLATE = "lockout.html"
 # Behind Render's proxy the real client IP is in X-Forwarded-For.
 AXES_IPWARE_PROXY_COUNT = env.int("AXES_PROXY_COUNT", default=0) or None
 AXES_IPWARE_META_PRECEDENCE_ORDER = ["HTTP_X_FORWARDED_FOR", "REMOTE_ADDR"]

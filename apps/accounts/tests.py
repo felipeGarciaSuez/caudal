@@ -88,3 +88,35 @@ def test_new_user_seeding_is_idempotent_on_update(settings):
     user.save()
 
     assert Wallet.objects.filter(owner=user).count() == before
+
+
+def test_lockout_shows_branded_page(client, settings):
+    """Too many failed logins render the branded Spanish page, not plain text."""
+    User.objects.create_user(username="ana", password="secret-pass")
+    url = "/accounts/login/"
+
+    # Exhaust the failure limit, then one more attempt trips the lockout.
+    for _ in range(settings.AXES_FAILURE_LIMIT + 1):
+        resp = client.post(url, {"username": "ana", "password": "wrong"})
+
+    assert resp.status_code == settings.AXES_HTTP_RESPONSE_CODE
+    assert "lockout.html" in {t.name for t in resp.templates}
+    content = resp.content.decode()
+    assert "Bloqueamos el ingreso" in content
+    assert "Account locked" not in content  # the old plain-text default is gone
+
+
+@pytest.mark.parametrize(
+    "delta, expected",
+    [
+        (timezone.timedelta(hours=1), "1 hora"),
+        (timezone.timedelta(minutes=45), "45 minutos"),
+        (timezone.timedelta(hours=1, minutes=30), "1 hora y 30 minutos"),
+        (timezone.timedelta(seconds=10), "1 minuto"),  # rounds up to a minute
+        (None, "un momento"),
+    ],
+)
+def test_duration_es(delta, expected):
+    from apps.dashboard.templatetags.timefmt import duration_es
+
+    assert duration_es(delta) == expected
