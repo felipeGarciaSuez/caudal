@@ -12,4 +12,11 @@
   <div id="statement-body">
     {% include "dashboard/_statement_body.html" %}
   </div>
+
+  <form method="post" action="{% url 'dashboard:card_statement_delete' wallet.id period %}"
+        style="margin-top:1.4rem"
+        onsubmit="return confirm('¿Eliminar todo el resumen de {{ period_label }} y sus {{ count }} consumo{{ count|pluralize }}? No se puede deshacer.')">
+    {% csrf_token %}
+    <button class="btn danger" type="submit">{% icon "trash-2" "icon" %} Eliminar este resumen</button>
+  </form>
 {% endblock %}
