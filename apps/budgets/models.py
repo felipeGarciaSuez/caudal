@@ -112,11 +112,70 @@ class MonthlyBudget(models.Model):
 
         return saved_ars(self.owner, self.period)
 
+    # --- Income sources (planned vs received) -------------------------------
+
+    @property
+    def income_sources(self):
+        return IncomeSource.objects.filter(owner=self.owner, period=self.period)
+
+    @property
+    def income_planned(self) -> Decimal:
+        """Total expected income for the month = sum of its income sources.
+
+        Falls back to the single ``expected_income`` figure when no sources are
+        itemized yet, so months created before this feature keep working.
+        """
+        total = self.income_sources.aggregate(t=Sum("expected_amount"))["t"]
+        if total is None:
+            return self.expected_income
+        return Decimal(total).quantize(Decimal("0.01"))
+
+    @property
+    def income_received(self) -> Decimal:
+        """Total actually collected across the month's income sources."""
+        total = self.income_sources.aggregate(t=Sum("received_amount"))["t"] or Decimal("0")
+        return Decimal(total).quantize(Decimal("0.01"))
+
     @property
     def remaining(self) -> Decimal:
-        """RESTO SUELDO = sueldo esperado − gastos − ahorro del mes.
+        """RESTO SUELDO = ingreso esperado del mes − gastos − ahorro del mes.
 
+        El ingreso esperado es la suma de las fuentes del mes (sueldo + extras).
         Ahorrar es un destino del sueldo: no es plata perdida, pero tampoco queda
         disponible para gastar, así que descuenta del resto (se muestra aparte).
         """
-        return self.expected_income - self.total_spent - self.total_saved
+        return self.income_planned - self.total_spent - self.total_saved
+
+
+class IncomeSource(models.Model):
+    """One income line for a month: an expected amount and what was collected.
+
+    Lets a month document several sources (salary, freelance, rent...) instead of
+    a single number. ``received_amount`` stays null until the money actually comes
+    in, so the month can compare planned vs received per source.
+    """
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="income_sources",
+    )
+    period = models.CharField("período", max_length=7)  # YYYY-MM
+    name = models.CharField("nombre", max_length=120)
+    expected_amount = models.DecimalField("monto esperado", max_digits=14, decimal_places=2)
+    received_amount = models.DecimalField(
+        "monto cobrado", max_digits=14, decimal_places=2, null=True, blank=True
+    )
+
+    class Meta:
+        verbose_name = "fuente de ingreso"
+        verbose_name_plural = "fuentes de ingreso"
+        ordering = ["id"]
+        indexes = [models.Index(fields=["owner", "period"])]
+
+    def __str__(self):
+        return f"{self.period} — {self.name}: {self.expected_amount}"
+
+    @property
+    def is_received(self) -> bool:
+        return self.received_amount is not None

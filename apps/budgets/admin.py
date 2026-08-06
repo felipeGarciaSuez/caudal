@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from .models import MonthlyBudget, RecurringExpense
+from .models import IncomeSource, MonthlyBudget, RecurringExpense
+
+
+@admin.register(IncomeSource)
+class IncomeSourceAdmin(admin.ModelAdmin):
+    list_display = ("period", "name", "expected_amount", "received_amount", "owner")
+    list_filter = ("period",)
+    search_fields = ("name",)
 
 
 @admin.register(RecurringExpense)

@@ -358,3 +358,54 @@ def test_fixed_page_renders(client_logged, user, wallet, fixed_cat):
     body = resp.content.decode()
     assert "Gastos fijos" in body
     assert "Alquiler" in body
+
+
+# --- Income sources (planned vs received) ----------------------------------
+
+
+def test_income_planned_falls_back_to_expected_income(user):
+    """A month with no itemized sources keeps using its single expected_income."""
+    budget = MonthlyBudget.objects.create(
+        owner=user, period="2026-08", expected_income=Decimal("1900000")
+    )
+    assert budget.income_planned == Decimal("1900000.00")
+    assert budget.income_received == Decimal("0.00")
+
+
+def test_income_planned_sums_sources_and_drives_remaining(user):
+    from apps.budgets.models import IncomeSource
+
+    budget = MonthlyBudget.objects.create(
+        owner=user, period="2026-08", expected_income=Decimal("1900000")
+    )
+    IncomeSource.objects.create(
+        owner=user, period="2026-08", name="Sueldo", expected_amount=Decimal("1900000")
+    )
+    IncomeSource.objects.create(
+        owner=user, period="2026-08", name="Freelance", expected_amount=Decimal("300000")
+    )
+    # Once itemized, the planned income is the sum of the sources, not the field.
+    assert budget.income_planned == Decimal("2200000.00")
+    # No expenses/savings yet, so the whole planned income is the RESTO.
+    assert budget.remaining == Decimal("2200000.00")
+
+
+def test_income_received_sums_only_collected(user):
+    from apps.budgets.models import IncomeSource
+
+    budget = MonthlyBudget.objects.create(
+        owner=user, period="2026-08", expected_income=Decimal("0")
+    )
+    IncomeSource.objects.create(
+        owner=user,
+        period="2026-08",
+        name="Sueldo",
+        expected_amount=Decimal("1900000"),
+        received_amount=Decimal("1900000"),
+    )
+    # Freelance is planned but not collected yet (received stays null).
+    IncomeSource.objects.create(
+        owner=user, period="2026-08", name="Freelance", expected_amount=Decimal("300000")
+    )
+    assert budget.income_received == Decimal("1900000.00")
+    assert budget.income_planned == Decimal("2200000.00")
