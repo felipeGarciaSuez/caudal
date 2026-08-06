@@ -71,9 +71,15 @@ ahorro tienen que calcularse sobre el **ingreso total** del mes, no solo el suel
   no un solo campo "sueldo".
 - Migracion de datos: el `expected_income` actual pasa a ser la fuente "Sueldo".
 
+**Estado del codigo hoy (relevado):**
+- `MonthlyBudget.expected_income` es UN solo numero (el sueldo planeado). El RESTO
+  SUELDO (`remaining`) se calcula con ese numero.
+- Ya existe `MonthlyBudget.actual_income`: suma las `Transaction(kind=income)` del
+  mes. PERO hoy no se usa en el RESTO (que va contra `expected_income`).
+
 **Notas:** decidir si un ingreso es una fila de `Transaction (income)` (mas simple,
-unifica con el flujo) o una entidad aparte del presupuesto. Confirmar el modelo
-contra `CLAUDE.md` antes de codear.
+unifica con el flujo, ya hay `actual_income`) o una entidad de "fuentes esperadas"
+aparte del presupuesto. Confirmar el modelo contra `CLAUDE.md` antes de codear.
 
 ---
 
@@ -98,7 +104,11 @@ contra `CLAUDE.md` antes de codear.
 
 ---
 
-## 4. Aviso estilizado al bloquearse por reintentos (django-axes)
+## 4. Aviso estilizado al bloquearse por reintentos (django-axes) [HECHO]
+
+> Implementado: template propio `templates/lockout.html` con branding y en
+> español, `AXES_LOCKOUT_TEMPLATE` en settings, filtro `duration_es` para el
+> tiempo de reintento. Con tests.
 
 **Que:** cuando django-axes bloquea la cuenta por demasiados intentos fallidos,
 hoy aparece el texto plano _"Account locked: too many login attempts. Please try
