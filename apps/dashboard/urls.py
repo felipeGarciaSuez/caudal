@@ -11,6 +11,10 @@ urlpatterns = [
     path("m/<str:period>/", views.month_view, name="month"),
     path("add/", views.add_transaction, name="add_transaction"),
     path("m/<str:period>/income/", views.set_income, name="set_income"),
+    path("m/<str:period>/income/detalle/", views.month_income, name="month_income"),
+    path("m/<str:period>/income/add/", views.income_add, name="income_add"),
+    path("income/<int:source_id>/", views.income_update, name="income_update"),
+    path("income/<int:source_id>/delete/", views.income_delete, name="income_delete"),
     path(
         "m/<str:period>/c/<int:category_id>/",
         views.category_detail,

@@ -9,7 +9,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from apps.budgets.models import MonthlyBudget
+from apps.budgets.forms import IncomeSourceForm
+from apps.budgets.models import IncomeSource, MonthlyBudget
 from apps.budgets.services import ensure_month_fixed
 from apps.savings.services import saved_ars
 from apps.transactions.forms import MonthlyIncomeForm, QuickTransactionForm
@@ -259,7 +260,9 @@ def _month_context(user, period: str) -> dict:
     # Ahorro, un gasto grande más). saved_ars solo devuelve el crédito de un
     # rescate neto (venta de dólares), que no tiene Transaction propia.
     saved = saved_ars(user, period)
-    income = budget.expected_income or zero
+    income = budget.income_planned or zero
+    income_received = budget.income_received
+    income_sources = list(budget.income_sources)
     used = total_spent + saved
     remaining = income - used
 
@@ -271,6 +274,8 @@ def _month_context(user, period: str) -> dict:
 
     metrics = {
         "income": income,
+        "income_received": income_received,
+        "income_source_count": len(income_sources),
         "total_spent": total_spent,
         "saved": saved,
         "saved_abs": abs(saved),
@@ -547,6 +552,90 @@ def set_income(request, period):
     )
     context = _month_context(request.user, period)
     return render(request, "dashboard/_month_body.html", context)
+
+
+# --- Ingresos del mes (varias fuentes: planeado vs cobrado) ------------------
+
+
+def _parse_amount(raw):
+    """Parse a posted amount into a non-negative Decimal, or None if blank/invalid."""
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        value = Decimal(raw.replace(".", "").replace(",", ".")) if "," in raw else Decimal(raw)
+    except InvalidOperation:
+        return None
+    return value if value >= 0 else None
+
+
+def _income_context(user, period: str) -> dict:
+    sources = list(IncomeSource.objects.filter(owner=user, period=period))
+    zero = Decimal("0.00")
+    planned = sum((s.expected_amount for s in sources), zero)
+    received = sum((s.received_amount or zero for s in sources), zero)
+    return {
+        "period": period,
+        "period_label": _period_label(period),
+        "sources": sources,
+        "income_planned": planned,
+        "income_received": received,
+    }
+
+
+@login_required
+def month_income(request, period):
+    user = request.user
+    # First time itemizing: carry the single "sueldo" over as the first source so
+    # nothing already loaded is lost when switching to the multi-source view.
+    if not IncomeSource.objects.filter(owner=user, period=period).exists():
+        budget = MonthlyBudget.objects.filter(owner=user, period=period).first()
+        if budget and budget.expected_income:
+            IncomeSource.objects.create(
+                owner=user,
+                period=period,
+                name="Sueldo",
+                expected_amount=budget.expected_income,
+            )
+    return render(request, "dashboard/month_income.html", _income_context(user, period))
+
+
+@login_required
+@require_POST
+def income_add(request, period):
+    form = IncomeSourceForm(request.POST)
+    if form.is_valid():
+        source = form.save(commit=False)
+        source.owner = request.user
+        source.period = period
+        source.save()
+    return render(request, "dashboard/_income_body.html", _income_context(request.user, period))
+
+
+@login_required
+@require_POST
+def income_update(request, source_id):
+    source = get_object_or_404(IncomeSource, id=source_id, owner=request.user)
+    if "expected_amount" in request.POST:
+        expected = _parse_amount(request.POST.get("expected_amount"))
+        if expected is not None:
+            source.expected_amount = expected
+    if "received_amount" in request.POST:
+        # A blank "cobrado" clears it back to "not collected yet" (null).
+        source.received_amount = _parse_amount(request.POST.get("received_amount"))
+    source.save()
+    return render(
+        request, "dashboard/_income_body.html", _income_context(request.user, source.period)
+    )
+
+
+@login_required
+@require_POST
+def income_delete(request, source_id):
+    source = get_object_or_404(IncomeSource, id=source_id, owner=request.user)
+    period = source.period
+    source.delete()
+    return render(request, "dashboard/_income_body.html", _income_context(request.user, period))
 
 
 # --- Resumen de tarjeta (gasto grande desglosable) ---------------------------

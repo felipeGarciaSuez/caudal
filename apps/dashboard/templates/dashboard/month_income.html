@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% load money icons %}
+{% block title %}Ingresos — {{ period_label }}{% endblock %}
+
+{% block content %}
+  <div class="monthbar">
+    <a class="nav" href="{% url 'dashboard:month' period %}" aria-label="Volver">{% icon "chevron-right" "icon flip" %}</a>
+    <div class="label">Ingresos<small>{{ period_label }}</small></div>
+    <span class="nav" style="visibility:hidden"></span>
+  </div>
+
+  <div id="income-body">
+    {% include "dashboard/_income_body.html" %}
+  </div>
+{% endblock %}

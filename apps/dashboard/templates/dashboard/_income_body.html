@@ -1,0 +1,73 @@
+{% load money icons %}
+
+<div class="hero">
+  <div class="k">Ingresos de {{ period_label }}</div>
+  <div class="v pos"><span class="cur">$</span><span class="tnum">{{ income_planned|money }}</span></div>
+  <div class="legend">
+    <span>planeado <b class="tnum">$ {{ income_planned|money:0 }}</b></span>
+    <span>cobrado <b class="tnum">$ {{ income_received|money:0 }}</b></span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-title"><span>Fuentes de ingreso</span></div>
+  <p class="muted" style="font-size:.78rem;margin-top:-.3rem">
+    Cargá tu sueldo y cualquier ingreso extra. "Cobrado" vacío = todavía no entró.
+  </p>
+
+  {% if sources %}
+    <ul class="rev-list">
+      {% for s in sources %}
+        <li id="income-{{ s.id }}" class="card rev-item {% if s.received_amount is None %}pending{% else %}confirmed{% endif %}">
+          <div class="rev-top">
+            <div class="rev-main"><div class="rev-name">{{ s.name }}</div></div>
+            <button class="icon-btn danger" type="button"
+                    hx-post="{% url 'dashboard:income_delete' s.id %}"
+                    hx-target="#income-body" hx-swap="innerHTML"
+                    hx-confirm="¿Borrar {{ s.name }}?" aria-label="Borrar">{% icon "trash-2" "icon" %}</button>
+          </div>
+          <div class="two-col">
+            <div class="field">
+              <label>Esperado</label>
+              <input type="number" name="expected_amount" inputmode="decimal" step="0.01" min="0"
+                     value="{{ s.expected_amount|stringformat:'.2f' }}"
+                     hx-post="{% url 'dashboard:income_update' s.id %}" hx-target="#income-body"
+                     hx-swap="innerHTML" hx-trigger="change" aria-label="Monto esperado">
+            </div>
+            <div class="field">
+              <label>Cobrado</label>
+              <input type="number" name="received_amount" inputmode="decimal" step="0.01" min="0"
+                     value="{% if s.received_amount is not None %}{{ s.received_amount|stringformat:'.2f' }}{% endif %}"
+                     placeholder="—"
+                     hx-post="{% url 'dashboard:income_update' s.id %}" hx-target="#income-body"
+                     hx-swap="innerHTML" hx-trigger="change" aria-label="Monto cobrado">
+            </div>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="empty">
+      <span class="big">{% icon "wallet" "icon-lg" %}</span>
+      Todavía no cargaste ingresos para {{ period_label }}.
+    </div>
+  {% endif %}
+
+  <form class="save-form" hx-post="{% url 'dashboard:income_add' period %}"
+        hx-target="#income-body" hx-swap="innerHTML"
+        hx-on::after-request="if(event.detail.successful) this.reset()">
+    <div class="two-col">
+      <div class="field">
+        <label>Nueva fuente</label>
+        <input type="text" name="name" maxlength="120" placeholder="Sueldo, Freelance…" required
+               aria-label="Nombre de la fuente">
+      </div>
+      <div class="field">
+        <label>Esperado</label>
+        <input type="number" name="expected_amount" inputmode="decimal" step="0.01" min="0"
+               placeholder="0,00" required aria-label="Monto esperado">
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">{% icon "plus" "icon" %} Agregar ingreso</button>
+  </form>
+</div>

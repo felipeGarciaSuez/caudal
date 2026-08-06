@@ -189,6 +189,78 @@ def test_set_income_creates_budget(client_logged, user):
     assert budget.expected_income == Decimal("1850000")
 
 
+def test_month_income_materializes_legacy_salary(client_logged, user):
+    """Opening the detail view carries the single expected_income over as a source."""
+    from apps.budgets.models import IncomeSource
+
+    MonthlyBudget.objects.create(owner=user, period="2026-06", expected_income=Decimal("1900000"))
+    resp = client_logged.get(reverse("dashboard:month_income", args=["2026-06"]))
+    assert resp.status_code == 200
+    source = IncomeSource.objects.get(owner=user, period="2026-06")
+    assert source.name == "Sueldo"
+    assert source.expected_amount == Decimal("1900000")
+
+
+def test_income_add_and_update_flow(client_logged, user):
+    from apps.budgets.models import IncomeSource
+
+    # Add two sources.
+    client_logged.post(
+        reverse("dashboard:income_add", args=["2026-06"]),
+        {"name": "Sueldo", "expected_amount": "1900000"},
+    )
+    resp = client_logged.post(
+        reverse("dashboard:income_add", args=["2026-06"]),
+        {"name": "Freelance", "expected_amount": "300000"},
+    )
+    assert resp.status_code == 200
+    freelance = IncomeSource.objects.get(owner=user, period="2026-06", name="Freelance")
+
+    # Mark the freelance as collected.
+    client_logged.post(
+        reverse("dashboard:income_update", args=[freelance.id]),
+        {"received_amount": "300000"},
+    )
+    freelance.refresh_from_db()
+    assert freelance.received_amount == Decimal("300000")
+
+    # A blank "cobrado" clears it back to not-collected.
+    client_logged.post(
+        reverse("dashboard:income_update", args=[freelance.id]),
+        {"received_amount": ""},
+    )
+    freelance.refresh_from_db()
+    assert freelance.received_amount is None
+
+    # The planned total comes from the sources (2.2M); the budget itself need not
+    # be persisted -- income_planned reads the sources by owner+period.
+    budget = MonthlyBudget(owner=user, period="2026-06", expected_income=Decimal("0"))
+    assert budget.income_planned == Decimal("2200000.00")
+
+
+def test_income_delete_removes_source(client_logged, user):
+    from apps.budgets.models import IncomeSource
+
+    src = IncomeSource.objects.create(
+        owner=user, period="2026-06", name="Alquiler", expected_amount=Decimal("120000")
+    )
+    resp = client_logged.post(reverse("dashboard:income_delete", args=[src.id]))
+    assert resp.status_code == 200
+    assert not IncomeSource.objects.filter(id=src.id).exists()
+
+
+def test_income_source_scoped_to_owner(client_logged, django_user_model):
+    from apps.budgets.models import IncomeSource
+
+    other = django_user_model.objects.create_user(username="otro", password="x")
+    src = IncomeSource.objects.create(
+        owner=other, period="2026-06", name="Sueldo", expected_amount=Decimal("500000")
+    )
+    resp = client_logged.post(reverse("dashboard:income_delete", args=[src.id]))
+    assert resp.status_code == 404
+    assert IncomeSource.objects.filter(id=src.id).exists()
+
+
 def test_toggle_paid_scope_month_returns_body_with_summary(client_logged, user, wallet):
     fixed = Category.objects.create(owner=user, name="Alquiler", kind=Category.Kind.FIXED)
     tx = Transaction.objects.create(

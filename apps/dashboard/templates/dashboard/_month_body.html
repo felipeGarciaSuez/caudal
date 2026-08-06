@@ -17,12 +17,20 @@
     <span style="width: {{ m.spent_pct }}%"></span>
   </div>
   <div class="legend">
-    <span class="inline-income">Sueldo $
-      <input type="number" name="expected_income" inputmode="decimal" step="0.01"
-             value="{{ budget.expected_income|stringformat:'.2f' }}"
-             hx-post="{% url 'dashboard:set_income' period %}" hx-target="#month-body"
-             hx-swap="innerHTML" hx-trigger="change" aria-label="Sueldo esperado">
-    </span>
+    {% if m.income_source_count %}
+      <a class="inline-income" href="{% url 'dashboard:month_income' period %}">
+        Ingresos $ {{ m.income|money:0 }}
+        {% if m.income_received %}<small class="muted">· cobrado $ {{ m.income_received|money:0 }}</small>{% endif %}
+      </a>
+    {% else %}
+      <span class="inline-income">Sueldo $
+        <input type="number" name="expected_income" inputmode="decimal" step="0.01"
+               value="{{ budget.expected_income|stringformat:'.2f' }}"
+               hx-post="{% url 'dashboard:set_income' period %}" hx-target="#month-body"
+               hx-swap="innerHTML" hx-trigger="change" aria-label="Sueldo esperado">
+        <a href="{% url 'dashboard:month_income' period %}" aria-label="Detallar ingresos (sumar fuentes)">{% icon "plus" "icon" %}</a>
+      </span>
+    {% endif %}
     <span>− gastos <b class="tnum">$ {{ m.total_spent|money:0 }}</b></span>
   </div>
   {% if m.saved < 0 %}
