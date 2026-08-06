@@ -89,7 +89,17 @@ aparte del presupuesto. Confirmar el modelo contra `CLAUDE.md` antes de codear.
 
 ---
 
-## 3. Login con Google (OAuth)
+## 3. Login con Google (OAuth) [HECHO - falta cargar credenciales]
+
+> Implementado: django-allauth + provider Google. Boton "Continuar con Google" en
+> el login (solo aparece si hay credenciales). Rutas en `accounts/`, backend de
+> allauth junto a axes/ModelBackend, config por `.env`
+> (GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_SECRET). Verificado: el boton redirige a
+> Google con el redirect_uri correcto. Con tests.
+>
+> **Pendiente (de Felipe):** crear el OAuth client en Google Cloud Console y
+> cargar las credenciales en `.env`. Redirect URI autorizada:
+> `https://TU-DOMINIO/accounts/google/login/callback/` (y la de localhost para dev).
 
 **Que:** permitir iniciar sesion con cuenta de Google, ademas de usuario/contrasena.
 

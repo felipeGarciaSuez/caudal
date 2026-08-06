@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load icons %}
+{% load icons socialaccount %}
 {% block title %}Ingresar — Caudal{% endblock %}
 
 {% block content %}
@@ -30,6 +30,16 @@
         <input type="hidden" name="next" value="{{ next }}">
         <button class="btn btn-primary" type="submit">Ingresar</button>
       </form>
+
+      {% get_providers as socialaccount_providers %}
+      {% if socialaccount_providers %}
+        <div class="oauth-sep"><span>o</span></div>
+        {% for provider in socialaccount_providers %}
+          <a class="btn btn-oauth" href="{% provider_login_url provider.id process='login' %}">
+            Continuar con {{ provider.name }}
+          </a>
+        {% endfor %}
+      {% endif %}
     </div>
   </div>
 {% endblock %}

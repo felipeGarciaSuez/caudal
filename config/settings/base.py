@@ -26,8 +26,13 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",  # required by allauth
     # Third-party
     "axes",  # brute-force protection on login
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
     # Local apps
     "apps.accounts",
     "apps.wallets",
@@ -47,15 +52,18 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # allauth needs its middleware after AuthenticationMiddleware.
+    "allauth.account.middleware.AccountMiddleware",
     # AxesMiddleware must be last so it sees the final auth outcome.
     "axes.middleware.AxesMiddleware",
 ]
 
 # Auth backends: AxesStandaloneBackend first so failed logins are throttled,
-# then Django's default ModelBackend for the actual credential check.
+# then Django's ModelBackend for password login, then allauth for social login.
 AUTHENTICATION_BACKENDS = [
     "axes.backends.AxesStandaloneBackend",
     "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -127,6 +135,27 @@ AXES_LOCKOUT_TEMPLATE = "lockout.html"
 # Behind Render's proxy the real client IP is in X-Forwarded-For.
 AXES_IPWARE_PROXY_COUNT = env.int("AXES_PROXY_COUNT", default=0) or None
 AXES_IPWARE_META_PRECEDENCE_ORDER = ["HTTP_X_FORWARDED_FOR", "REMOTE_ADDR"]
+
+# --- Social login (django-allauth + Google) ----------------------------------
+# Lets users sign in with Google alongside the username/password login. The
+# Google provider only shows up if its credentials are set, so dev/CI without
+# them keeps the plain login working.
+SITE_ID = 1
+LOGIN_REDIRECT_URL = "/"
+ACCOUNT_LOGIN_METHODS = {"username"}  # our own login form still uses username
+ACCOUNT_EMAIL_VERIFICATION = "none"  # single-instance app, no verification mail
+SOCIALACCOUNT_LOGIN_ON_GET = True  # click the Google button -> straight to Google
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True  # match an existing account by email
+
+GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID", default="")
+GOOGLE_OAUTH_SECRET = env("GOOGLE_OAUTH_SECRET", default="")
+SOCIALACCOUNT_PROVIDERS = {}
+if GOOGLE_OAUTH_CLIENT_ID:
+    SOCIALACCOUNT_PROVIDERS["google"] = {
+        "APPS": [{"client_id": GOOGLE_OAUTH_CLIENT_ID, "secret": GOOGLE_OAUTH_SECRET, "key": ""}],
+        "SCOPE": ["profile", "email"],
+        "AUTH_PARAMS": {"access_type": "online"},
+    }
 
 # Admin URL is configurable so it can be moved off the well-known /admin/ path
 # in prod (set ADMIN_URL to something hard to guess; keep the trailing slash).

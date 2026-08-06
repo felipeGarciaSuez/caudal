@@ -57,6 +57,8 @@ def test_login_page_renders_branded(client):
     assert "Ingresar" in body
     # The Django admin login chrome must not be here.
     assert "Django administration" not in body
+    # Without OAuth credentials configured, the Google button stays hidden.
+    assert "Continuar con Google" not in body
 
 
 def test_login_authenticates_and_redirects(client, django_user_model):

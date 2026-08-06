@@ -24,6 +24,9 @@ urlpatterns = [
         name="login",
     ),
     path("accounts/logout/", auth_views.LogoutView.as_view(), name="logout"),
+    # allauth (social login). Comes after our branded login/logout so those win;
+    # this adds the Google OAuth flow routes (accounts/google/login/, callbacks).
+    path("accounts/", include("allauth.urls")),
     path("import/", include("apps.imports.urls")),
     path("savings/", include("apps.savings.urls")),
     path("fijos/", include("apps.budgets.urls")),
