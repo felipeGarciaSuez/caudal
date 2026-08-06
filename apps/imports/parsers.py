@@ -404,9 +404,45 @@ _MONEY_SIGN_RE = re.compile(r"(\d{1,3}(?:\.\d{3})*,\d{2})(-?)")
 _VISA_DUP_RE = re.compile(r"\d{2}\.\d{2}\.\d{2}\s+\d{6}")
 
 
+# The due date may sit inline with its label ("VENCIMIENTO ACTUAL 11 Ago 26").
+_VISA_DUE_INLINE_RE = re.compile(
+    r"VENCIMIENTO\s+ACTUAL\s+(\d{1,2})[\s./-]+([A-Za-z]{3}|\d{1,2})[\s./-]+(\d{2,4})",
+    re.IGNORECASE,
+)
+# In the multi-column summary box, pypdf drops each date on its own line,
+# decoupled from its label. The due date is the first such "dd Mmm yy" line
+# (VENCIMIENTO ACTUAL is printed before CIERRE ACTUAL and the previous/next
+# cycle dates). Charge lines use a numeric "dd.mm.yy", so they never match here.
+_VISA_DUE_LINE_RE = re.compile(r"^\s*(\d{1,2})\s+([A-Za-z]{3})\s+(\d{2})\s*$")
+
+
+def _period_from_dmy(day: str, mon: str, year: str) -> str | None:
+    """Build a YYYY-MM period from day/month/year parts; month may be a Spanish
+    abbreviation ("Ago") or a number. Returns None if the month is unparseable."""
+    month = _ES_MONTH_ABBR.get(mon.lower()) if mon.isalpha() else int(mon)
+    if not month or not 1 <= month <= 12:
+        return None
+    y = int(year)
+    if y < 100:
+        y += 2000
+    return f"{y:04d}-{month:02d}"
+
+
 def _visa_statement_period(text: str) -> str | None:
-    """The month you pay this statement: the latest dd.mm.yy in the body, which
-    is the closing/tax date. All charges get assigned to it."""
+    """The month you pay this statement, taken from its due date.
+
+    ICBC prints "VENCIMIENTO ACTUAL 11 Ago 26"; that month (August) is when the
+    statement is paid and where its charges belong. Read it whether pypdf keeps
+    the date beside its label or, in the multi-column summary box, drops it on
+    its own line. Fall back to the latest dd.mm.yy in the body (the closing/tax
+    date) only when no due date is found -- that lands on the closing month.
+    """
+    inline = _VISA_DUE_INLINE_RE.search(text)
+    if inline and (period := _period_from_dmy(*inline.groups())):
+        return period
+    for line in text.splitlines():
+        if (m := _VISA_DUE_LINE_RE.match(line)) and (period := _period_from_dmy(*m.groups())):
+            return period
     dates = []
     for mo in re.finditer(r"\b(\d{2})\.(\d{2})\.(\d{2})\b", text):
         d, m, y = (int(g) for g in mo.groups())

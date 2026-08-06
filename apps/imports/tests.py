@@ -309,6 +309,36 @@ def test_parse_card_pdf_charges_period_usd_cuotas_and_skips():
     assert sum(1 for r in rows if r.external_id.startswith("card:555555")) == 1
 
 
+def test_parse_card_pdf_period_from_due_date():
+    from apps.imports.parsers import parse_card_icbc_pdf
+
+    # The statement is paid in August even though its latest charge/tax date is
+    # in July: the due date ("VENCIMIENTO ACTUAL") drives the period.
+    text = "VENCIMIENTO ACTUAL 11 Ago 26\n" + _PDF_TEXT
+    rows = parse_card_icbc_pdf(text, usd_rate=Decimal("1000"))
+
+    assert {r.period for r in rows} == {"2026-08"}
+
+
+def test_parse_card_pdf_period_from_column_due_date():
+    from apps.imports.parsers import parse_card_icbc_pdf
+
+    # Real statements put the summary box in columns, so pypdf drops each date on
+    # its own line, decoupled from its label. The due date is the first "dd Mmm
+    # yy" line (VENCIMIENTO ACTUAL), before CIERRE ACTUAL and the previous cycle.
+    header = (
+        "TITULAR DE CUENTAVENCIMIENTO ACTUAL\n"
+        "CIERRE ACTUAL\n"
+        "GARCIA SUEZ FELIPE\n"
+        "11 Ago 26\n"  # VENCIMIENTO ACTUAL -> pays in August
+        "30 Jul 26\n"  # CIERRE ACTUAL
+        "14 Jul 26\n"  # VTO. ANTERIOR
+    )
+    rows = parse_card_icbc_pdf(header + _PDF_TEXT, usd_rate=Decimal("1000"))
+
+    assert {r.period for r in rows} == {"2026-08"}
+
+
 def test_parse_card_pdf_usd_without_rate_is_zero():
     from apps.imports.parsers import parse_card_icbc_pdf
 
