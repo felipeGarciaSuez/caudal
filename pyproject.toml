@@ -18,6 +18,7 @@ dependencies = [
     "pypdf>=5.1",
     "django-allauth>=65.19.0",
     "requests>=2.34.2",
+    "pyjwt[crypto]>=2.13.0",
 ]
 
 [dependency-groups]
