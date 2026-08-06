@@ -1,0 +1,83 @@
+# Caudal en producción — VPS, detrás de Caddy.
+#
+# Ningún servicio publica puertos al host. Caddy llega a `web` por la red
+# `web` de Docker, y la base solo existe en la red `interna`, que no tiene
+# salida ni entrada. Ver .claude/CLAUDE.md sección 3 del repo infra: un
+# `ports:` acá dejaría Postgres abierto a internet aunque ufw diga lo
+# contrario, porque Docker escribe iptables por debajo de ufw.
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: caudal:latest
+    # Caddy hace reverse_proxy a caudal-web:8000, así que este nombre es
+    # parte del contrato con /opt/apps/caddy/Caddyfile.
+    container_name: caudal-web
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Los archivos subidos (importaciones de PDF) viven en un volumen, no
+      # en la imagen: si no, se pierden en cada rebuild.
+      - caudal_media:/app/media
+    networks:
+      - web
+      - interna
+    healthcheck:
+      # Ver docker-healthcheck.py: tiene que mandar Host y X-Forwarded-Proto
+      # imitando a Caddy, o Django contesta 400 (DisallowedHost) o 301
+      # (SECURE_SSL_REDIRECT) y el contenedor queda unhealthy funcionando bien.
+      test: ["CMD", "python", "/app/docker-healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      # Sin esto los logs de Docker crecen sin límite y llenan el disco en
+      # silencio. 3 archivos de 10M = 30M como techo por contenedor.
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  db:
+    image: postgres:17-alpine
+    container_name: caudal-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - caudal_pgdata:/var/lib/postgresql/data
+    networks:
+      # Solo la red interna: la base no es alcanzable desde Caddy ni desde
+      # ningún otro proyecto del servidor.
+      - interna
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  caudal_pgdata:
+  caudal_media:
+
+networks:
+  web:
+    # Creada a mano con `docker network create web`. external: true para que
+    # ningún `docker compose down` se la lleve puesta y tire abajo a Caddy.
+    external: true
+  interna:
+    driver: bridge

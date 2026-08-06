@@ -10,7 +10,11 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "whitenoise>=6.7",
     "gunicorn>=23.0",
-    "django-axes>=8.3.1",
+    # El extra [ipware] no es opcional en la práctica: sin django-ipware,
+    # axes ignora X-Forwarded-For y registra la IP del reverse proxy en vez
+    # de la del cliente, con lo cual el bloqueo por fuerza bruta no protege
+    # nada. Toda la config AXES_IPWARE_* de settings/base.py depende de esto.
+    "django-axes[ipware]>=8.3.1",
     "pypdf>=5.1",
 ]
 

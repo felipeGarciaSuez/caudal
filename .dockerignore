@@ -1,0 +1,35 @@
+# Secretos: el .env de producción vive en el servidor, nunca en la imagen.
+# Si se copiara acá, django-environ lo leería y pisaría las variables que
+# inyecta docker compose.
+.env
+.env.*
+!.env.example
+
+# Extractos bancarios reales usados para probar el importador. NUNCA van a
+# una imagen: son datos financieros reales.
+examples/
+
+# Base y archivos de desarrollo
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+
+# El venv local es de Windows; adentro del contenedor se crea uno nuevo.
+.venv/
+__pycache__/
+*.py[cod]
+
+.git/
+.github/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+.idea/
+.vscode/
+.DS_Store
+
+*.md
+!README.md

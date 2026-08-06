@@ -1,0 +1,8 @@
+# docker-entrypoint.sh corre adentro de un contenedor Linux. Si git lo
+# checkoutea con CRLF en Windows, el contenedor falla con
+# "bad interpreter: /usr/bin/env bash^M" — un error que no delata su causa.
+*.sh text eol=lf
+Dockerfile text eol=lf
+.dockerignore text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
