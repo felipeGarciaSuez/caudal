@@ -274,10 +274,13 @@ a.chev { text-decoration: none; display: inline-grid; place-items: center; }
 .login .fld .input:focus { outline: none; }
 .login .btn-primary { margin-top: .4rem; }
 .login .lockout-note { color: var(--muted); font-size: .92rem; margin: .2rem 0 1rem; }
-.oauth-sep { display: flex; align-items: center; gap: .7rem; margin: 1rem 0 .8rem; color: var(--faint); font-size: .8rem; }
-.oauth-sep::before, .oauth-sep::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-.btn-oauth { display: flex; align-items: center; justify-content: center; width: 100%; background: var(--bg-1); border: 1px solid var(--line); color: var(--text); }
-.btn-oauth:hover { border-color: var(--brand); }
+.oauth-sep { display: flex; align-items: center; gap: .8rem; margin: 1.1rem 0 .9rem; color: var(--muted); font-size: .78rem; }
+.oauth-sep::before, .oauth-sep::after { content: ""; flex: 1 1 auto; height: 1px;
+  background: linear-gradient(to right, transparent, var(--line), transparent); }
+.btn-google { display: flex; align-items: center; justify-content: center; gap: .6rem; width: 100%;
+  background: #fff; color: #3c4043; border: 1px solid var(--line); font-weight: 600; }
+.btn-google:hover { background: #f5f6f7; }
+.btn-google .g-logo { width: 18px; height: 18px; flex: none; }
 
 /* ---------- Fixed-expenses checklist ---------- */
 [x-cloak] { display: none !important; }
