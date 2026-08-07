@@ -8,27 +8,6 @@
     <input type="text" name="name" value="{{ cat.name|default:'' }}"
            placeholder="Delivery, Alquiler, Nafta…" required aria-label="Nombre">
   </div>
-  <div class="two-col">
-    <div class="field">
-      <label>Tipo</label>
-      <select name="kind" aria-label="Tipo">
-        {% for value, label in kinds %}
-          <option value="{{ value }}" {% if cat.kind == value %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="field">
-      <label>Grupo (opcional)</label>
-      <select name="parent" aria-label="Grupo">
-        <option value="">— sin grupo —</option>
-        {% for p in parent_options %}
-          {% if not cat or p.id != cat.id %}
-            <option value="{{ p.id }}" {% if cat.parent_id == p.id %}selected{% endif %}>{{ p.name }}</option>
-          {% endif %}
-        {% endfor %}
-      </select>
-    </div>
-  </div>
   <div class="field">
     <label>Ícono</label>
     <input type="hidden" name="icon" :value="icon">

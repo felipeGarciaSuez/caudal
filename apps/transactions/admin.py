@@ -5,8 +5,7 @@ from .models import Category, Transaction
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ("name", "kind", "parent", "owner")
-    list_filter = ("kind",)
+    list_display = ("name", "owner")
     search_fields = ("name",)
 
 
@@ -22,7 +21,7 @@ class TransactionAdmin(admin.ModelAdmin):
         "needs_review",
         "description",
     )
-    list_filter = ("kind", "needs_review", "is_paid", "source", "wallet", "category__kind")
+    list_filter = ("kind", "needs_review", "is_paid", "source", "wallet")
     search_fields = ("description", "external_id")
     date_hierarchy = "date"
     list_select_related = ("wallet", "category")

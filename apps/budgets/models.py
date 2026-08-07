@@ -84,18 +84,6 @@ class MonthlyBudget(models.Model):
         return self._sum(self._expense_qs())
 
     @property
-    def total_fixed(self) -> Decimal:
-        return self._sum(self._expense_qs().filter(category__kind=Category.Kind.FIXED))
-
-    @property
-    def total_variable(self) -> Decimal:
-        return self._sum(self._expense_qs().filter(category__kind=Category.Kind.VARIABLE))
-
-    @property
-    def total_ant(self) -> Decimal:
-        return self._sum(self._expense_qs().filter(category__kind=Category.Kind.ANT))
-
-    @property
     def actual_income(self) -> Decimal:
         return self._sum(
             Transaction.objects.filter(

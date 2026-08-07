@@ -6,7 +6,7 @@ from .models import CategoryRule, ImportBatch
 @admin.register(CategoryRule)
 class CategoryRuleAdmin(admin.ModelAdmin):
     list_display = ("keyword", "category", "priority", "is_active", "owner")
-    list_filter = ("is_active", "category__kind")
+    list_filter = ("is_active",)
     search_fields = ("keyword",)
     list_editable = ("priority", "is_active")
 

@@ -60,12 +60,8 @@
   </div>
 
   {% if fixed_rows %}
-    {% for group in fixed_groups %}
-      {% if fixed_groups|length > 1 %}
-        <div class="fx-group-label">{{ group.name|default:"Otros" }}</div>
-      {% endif %}
       <ul class="fx-list">
-        {% for tx in group.rows %}
+        {% for tx in fixed_rows %}
           <li class="fx-row {% if not tx.is_paid %}pending{% endif %}" id="fx-{{ tx.id }}">
             <button class="paid-toggle {% if tx.is_paid %}paid{% endif %}"
                     hx-post="{% url 'dashboard:toggle_paid' tx.id %}" hx-vals='{"scope": "month"}'
@@ -89,7 +85,6 @@
           </li>
         {% endfor %}
       </ul>
-    {% endfor %}
     <div class="fx-summary">
       {% if m.fixed_all_paid %}
         <span class="ok">{% icon "check" "icon" %} Pagaste todos los fijos</span>
@@ -131,7 +126,7 @@
       {% for row in big_rows %}
         {% if row.single %}
           {# Un solo movimiento: se muestra suelto, con tick, flecha al detalle y tacho. #}
-          <li class="cat-item k-{{ row.category__kind|default:'none' }}">
+          <li class="cat-item">
             <button class="paid-toggle {% if row.single.is_paid %}paid{% endif %}"
                     hx-post="{% url 'dashboard:toggle_paid' row.single.id %}"
                     hx-vals='{"scope":"month","period":"{{ period }}"}'
@@ -151,7 +146,7 @@
           </li>
         {% else %}
           {# Varios movimientos: agrupado por categoría. Icono decorativo, flecha al detalle. #}
-          <li class="cat-item k-{{ row.category__kind|default:'none' }}">
+          <li class="cat-item">
             <span class="ic">{% icon row.category__icon|default:"tag" "icon" %}</span>
             <div class="body">
               <div class="name">{{ row.category__name|default:"Sin categoría" }}</div>
@@ -284,7 +279,7 @@
       </label>
       <div class="chips" style="margin-top:.7rem">
         {% for c in quick_categories %}
-          <button class="chip k-{{ c.kind }}" type="submit" name="category" value="{{ c.id }}" :disabled="!amount">
+          <button class="chip" type="submit" name="category" value="{{ c.id }}" :disabled="!amount">
             {% icon c.icon|default:"tag" "icon" %}{{ c.name }}
           </button>
         {% endfor %}

@@ -35,11 +35,9 @@ def _fixed_context(user, **extra) -> dict:
     ctx = {
         "recurring": recurring,
         "active_count": sum(1 for r in recurring if r.is_active),
-        # Only fixed leaf categories: a recurring expense feeds the month checklist,
-        # which is fixed + manual. Group-only parents aren't selectable.
-        "categories": Category.objects.filter(
-            owner=user, kind=Category.Kind.FIXED, children__isnull=True
-        ).order_by("name"),
+        # Any category can back a recurring expense now: what makes it fixed is
+        # being recurring, not the category.
+        "categories": Category.objects.filter(owner=user).order_by("name"),
         "wallets": Wallet.objects.filter(owner=user, is_active=True),
         "nav_active": "settings",
         # The '+' FAB adds a loose expense on the current month page.
@@ -74,10 +72,10 @@ def _clean_common(request, user):
         return None, "El día del mes no es válido."
     day = min(max(day, 1), 31)
     category = Category.objects.filter(
-        owner=user, pk=request.POST.get("category"), kind=Category.Kind.FIXED
+        owner=user, pk=request.POST.get("category")
     ).first()
     if category is None:
-        return None, "Elegí una categoría fija."
+        return None, "Elegí una categoría."
     wallet = Wallet.objects.filter(
         owner=user, pk=request.POST.get("wallet"), is_active=True
     ).first()
