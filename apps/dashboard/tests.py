@@ -263,6 +263,29 @@ def test_income_source_scoped_to_owner(client_logged, django_user_model):
     assert IncomeSource.objects.filter(id=src.id).exists()
 
 
+def test_checklist_big_expense_can_be_deleted(client_logged, user, wallet):
+    """A big expense that lands in the checklist (fixed category) can be deleted
+    from the month view -- before, only single big_rows had a delete button."""
+    fix = Category.objects.create(owner=user, name="Alquiler", kind=Category.Kind.FIXED)
+    tx = Transaction.objects.create(
+        owner=user,
+        wallet=wallet,
+        category=fix,
+        amount=Decimal("50000"),
+        kind=Transaction.Kind.EXPENSE,
+        date="2026-06-05",
+        source=Transaction.Source.MANUAL,
+    )
+    body = client_logged.get(reverse("dashboard:month", args=["2026-06"])).content.decode()
+    assert reverse("dashboard:delete_transaction", args=[tx.id]) in body
+
+    client_logged.post(
+        reverse("dashboard:delete_transaction", args=[tx.id]),
+        {"scope": "month", "period": "2026-06"},
+    )
+    assert not Transaction.objects.filter(id=tx.id).exists()
+
+
 def test_toggle_paid_scope_month_returns_body_with_summary(client_logged, user, wallet):
     fixed = Category.objects.create(owner=user, name="Alquiler", kind=Category.Kind.FIXED)
     tx = Transaction.objects.create(

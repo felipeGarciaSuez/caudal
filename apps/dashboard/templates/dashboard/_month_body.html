@@ -81,6 +81,11 @@
                      hx-post="{% url 'dashboard:update_amount' tx.id %}" hx-target="#month-body"
                      hx-swap="innerHTML" hx-trigger="change" aria-label="Monto de {{ tx.description }}">
             </span>
+            <button class="icon-btn danger sm"
+                    hx-post="{% url 'dashboard:delete_transaction' tx.id %}"
+                    hx-vals='{"scope":"month","period":"{{ period }}"}'
+                    hx-target="#month-body" hx-swap="innerHTML"
+                    hx-confirm="¿Borrar «{{ tx.description|default:tx.category }}»?" aria-label="Borrar">{% icon "trash-2" "icon" %}</button>
           </li>
         {% endfor %}
       </ul>
