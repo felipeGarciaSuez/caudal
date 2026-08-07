@@ -1,5 +1,5 @@
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, ProtectedError
+from django.db.models import ProtectedError
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
@@ -18,17 +18,8 @@ def _current_period() -> str:
 
 
 def _categories_context(user, **extra) -> dict:
-    categories = (
-        Category.objects.filter(owner=user)
-        .select_related("parent")
-        .annotate(child_count=Count("children"))
-        .order_by("kind", "name")
-    )
     ctx = {
-        "categories": categories,
-        # Only top-level categories can be chosen as a group (one nesting level).
-        "parent_options": Category.objects.filter(owner=user, parent__isnull=True).order_by("name"),
-        "kinds": Category.Kind.choices,
+        "categories": Category.objects.filter(owner=user).order_by("name"),
         "icon_choices": ICON_CHOICES,
         "nav_active": "settings",
         "add_href": reverse("dashboard:month", args=[_current_period()]) + "#add-card",
@@ -49,7 +40,7 @@ def _error_body(request, message: str):
 
 
 def _clean_common(request, user, instance=None):
-    """Validate fields shared by add/update. Returns (data, error)."""
+    """Validate a category's fields (name + icon). Returns (data, error)."""
     name = (request.POST.get("name") or "").strip()
     if not name:
         return None, "Poné un nombre para la categoría."
@@ -58,26 +49,10 @@ def _clean_common(request, user, instance=None):
         dupe = dupe.exclude(pk=instance.pk)
     if dupe.exists():
         return None, f"Ya tenés una categoría llamada {name}."
-    kind = request.POST.get("kind")
-    if kind not in Category.Kind.values:
-        return None, "Elegí un tipo (fijo, variable u hormiga)."
     icon = (request.POST.get("icon") or "").strip()
     if icon and icon not in ICONS:
         icon = ""
-
-    parent = None
-    parent_id = request.POST.get("parent")
-    if parent_id:
-        parent = Category.objects.filter(owner=user, pk=parent_id).first()
-        if parent is None:
-            return None, "El grupo elegido no existe."
-        if instance is not None and parent.pk == instance.pk:
-            return None, "Una categoría no puede agruparse en sí misma."
-        if parent.parent_id is not None:
-            return None, "Elegí un grupo de primer nivel (no una subcategoría)."
-
-    data = {"name": name, "kind": kind, "icon": icon, "parent": parent}
-    return data, None
+    return {"name": name, "icon": icon}, None
 
 
 @login_required
@@ -98,9 +73,6 @@ def update_category(request, pk):
     data, error = _clean_common(request, request.user, instance=category)
     if error:
         return _error_body(request, error)
-    # A category that groups others can't itself be nested (would be two levels).
-    if data["parent"] is not None and category.children.exists():
-        return _error_body(request, "Esta categoría es un grupo: no la podés meter en otro grupo.")
     for field, value in data.items():
         setattr(category, field, value)
     category.save()

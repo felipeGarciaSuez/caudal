@@ -115,7 +115,7 @@ def test_delete_wallet_without_movements(client_logged, user):
 
 def test_delete_wallet_with_movements_is_blocked(client_logged, user):
     w = Wallet.objects.create(owner=user, name="ICBC", kind=Wallet.Kind.BANK)
-    cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
+    cat = Category.objects.create(owner=user, name="Super")
     Transaction.objects.create(
         owner=user,
         wallet=w,

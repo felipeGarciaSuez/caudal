@@ -5,12 +5,9 @@ from django.db import models
 
 
 class Category(models.Model):
-    """Spending category, split by behaviour: fixed / variable / ant (hormiga)."""
-
-    class Kind(models.TextChoices):
-        FIXED = "fixed", "Fijo"
-        VARIABLE = "variable", "Variable"
-        ANT = "ant", "Hormiga"
+    """Spending bucket (a plain label). Whether an expense counts as fixed, big
+    or hormiga is decided per-expense (recurrence / amount / manual flag), not by
+    the category, so the same bucket can hold expenses of any kind."""
 
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -18,14 +15,6 @@ class Category(models.Model):
         related_name="categories",
     )
     name = models.CharField("nombre", max_length=80)
-    kind = models.CharField("tipo", max_length=10, choices=Kind.choices)
-    parent = models.ForeignKey(
-        "self",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="children",
-    )
     icon = models.CharField("ícono", max_length=40, blank=True)
     color = models.CharField("color", max_length=20, blank=True)
 

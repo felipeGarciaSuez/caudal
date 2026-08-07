@@ -15,34 +15,24 @@
   </div>
 
   {% if categories %}
-    {% regroup categories by get_kind_display as kind_groups %}
-    {% for group in kind_groups %}
-      <div class="fx-group-label">{{ group.grouper }}</div>
-      <ul class="fx-list">
-        {% for c in group.list %}
-          <li class="fx-row" x-data="{ edit: false }">
-            <button type="button" class="fx-main" @click="edit = !edit"
-                    style="text-align:left;background:none;border:0;padding:0;cursor:pointer;color:inherit">
-              <div class="fx-name">{% icon c.icon|default:"tag" "icon" %} {{ c.name }}</div>
-              <div class="fx-where">
-                {{ c.get_kind_display }}
-                {% if c.parent %} · en {{ c.parent.name }}{% endif %}
-                {% if c.child_count %} · grupo de {{ c.child_count }}{% endif %}
-              </div>
-            </button>
-            <button type="button" class="icon-btn" @click="edit = !edit" aria-label="Editar">{% icon "pencil" "icon" %}</button>
-            <div x-show="edit" x-cloak class="fx-edit" style="flex-basis:100%;margin-top:.8rem">
-              {% url 'transactions:update_category' c.id as post_url %}
-              {% include "transactions/_category_form.html" with cat=c post_url=post_url %}
-            </div>
-          </li>
-        {% endfor %}
-      </ul>
-    {% endfor %}
+    <ul class="fx-list">
+      {% for c in categories %}
+        <li class="fx-row" x-data="{ edit: false }">
+          <button type="button" class="fx-main" @click="edit = !edit"
+                  style="text-align:left;background:none;border:0;padding:0;cursor:pointer;color:inherit">
+            <div class="fx-name">{% icon c.icon|default:"tag" "icon" %} {{ c.name }}</div>
+          </button>
+          <button type="button" class="icon-btn" @click="edit = !edit" aria-label="Editar">{% icon "pencil" "icon" %}</button>
+          <div x-show="edit" x-cloak class="fx-edit" style="flex-basis:100%;margin-top:.8rem">
+            {% url 'transactions:update_category' c.id as post_url %}
+            {% include "transactions/_category_form.html" with cat=c post_url=post_url %}
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
     <p class="hint muted" style="margin-top:.8rem">
-      El tipo define dónde suma: <b>fijo</b> va al checklist de gastos grandes, <b>variable</b> se
-      agrega por categoría, <b>hormiga</b> es el gasto chico. Un grupo (ej. Gastos Vivienda) junta
-      varios fijos en el checklist.
+      Las categorías son solo etiquetas del gasto. Si un gasto es grande o chico lo decide el
+      monto (y la marca "es un gasto grande"), no la categoría.
     </p>
   {% else %}
     <div class="empty">

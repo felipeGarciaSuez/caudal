@@ -147,7 +147,7 @@ def test_run_import_dedupes_on_reimport(user, wallet):
 
 
 def test_run_import_applies_category_rules(user, wallet):
-    delivery = Category.objects.create(owner=user, name="Delivery", kind=Category.Kind.ANT)
+    delivery = Category.objects.create(owner=user, name="Delivery")
     CategoryRule.objects.create(owner=user, keyword="RAPPI", category=delivery)
     run_import(
         owner=user,
@@ -525,7 +525,7 @@ def test_rules_home_renders(client_logged, user):
 
 
 def test_add_rule_creates(client_logged, user):
-    cat = Category.objects.create(owner=user, name="Delivery", kind=Category.Kind.ANT)
+    cat = Category.objects.create(owner=user, name="Delivery")
     resp = client_logged.post(
         reverse("imports:add_rule"),
         {"keyword": "RAPPI", "category": cat.id, "priority": "50"},
@@ -545,7 +545,7 @@ def test_add_rule_requires_category(client_logged, user):
 
 
 def test_update_toggle_and_delete_rule(client_logged, user):
-    cat = Category.objects.create(owner=user, name="Delivery", kind=Category.Kind.ANT)
+    cat = Category.objects.create(owner=user, name="Delivery")
     rule = CategoryRule.objects.create(owner=user, keyword="RAPPI", category=cat)
     # update
     client_logged.post(
@@ -566,7 +566,7 @@ def test_update_toggle_and_delete_rule(client_logged, user):
 
 def test_cannot_touch_other_users_rule(client_logged, django_user_model):
     other = django_user_model.objects.create_user(username="otro", password="x")
-    cat = Category.objects.create(owner=other, name="X", kind=Category.Kind.ANT)
+    cat = Category.objects.create(owner=other, name="X")
     rule = CategoryRule.objects.create(owner=other, keyword="X", category=cat)
     resp = client_logged.post(reverse("imports:delete_rule", args=[rule.id]))
     assert resp.status_code == 404

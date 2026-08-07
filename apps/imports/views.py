@@ -106,9 +106,7 @@ def _rules_context(user, **extra) -> dict:
     )
     ctx = {
         "rules": rules,
-        "categories": Category.objects.filter(owner=user, children__isnull=True).order_by(
-            "kind", "name"
-        ),
+        "categories": Category.objects.filter(owner=user).order_by("name"),
         "active_count": sum(1 for r in rules if r.is_active),
         "nav_active": "settings",
         "add_href": reverse("dashboard:month", args=[timezone.localdate().strftime("%Y-%m")])

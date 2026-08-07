@@ -7,7 +7,7 @@ from django.urls import reverse
 from apps.budgets.models import MonthlyBudget
 from apps.savings import services
 from apps.savings.models import Asset, PriceSnapshot, SavingsMovement
-from apps.transactions.models import Category, Transaction
+from apps.transactions.models import Transaction
 from apps.wallets.models import Wallet
 
 pytestmark = pytest.mark.django_db
@@ -123,7 +123,6 @@ def test_create_ahorro_expense_links_and_categorizes(user, wallet, usd):
     mv.refresh_from_db()
     assert mv.linked_expense_id == tx.id
     assert tx.category.name == "Ahorro"
-    assert tx.category.kind == Category.Kind.VARIABLE
     assert tx.amount == Decimal("135000.00")
     assert tx.wallet == wallet
     assert tx.kind == Transaction.Kind.EXPENSE

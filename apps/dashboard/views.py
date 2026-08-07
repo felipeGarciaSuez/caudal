@@ -76,9 +76,9 @@ def _pct(part: Decimal, whole: Decimal) -> int:
 def _ant_total(user, period: str) -> Decimal:
     """Total hormiga spend for a period (own part, excluding review).
 
-    Hormiga is defined by amount, not category: any non-card, non-fixed expense
-    whose own part is below the user's threshold. Fixed obligations are planned
-    spend and never hormiga, even when small.
+    Hormiga is defined by amount, not category: any non-card, non-recurring
+    expense whose own part is below the user's threshold. Recurring (fixed)
+    obligations are planned spend and never hormiga, even when small.
     """
     own = F("amount") * F("shared_ratio")
     qs = (
@@ -89,7 +89,7 @@ def _ant_total(user, period: str) -> Decimal:
             needs_review=False,
         )
         .exclude(wallet__kind=Wallet.Kind.CREDIT_CARD)
-        .exclude(category__kind=Category.Kind.FIXED)
+        .exclude(recurring_expense__isnull=False)
         .exclude(is_big=True)
         .annotate(_own=own)
     )
@@ -106,32 +106,11 @@ def _pct_change(current: Decimal, previous: Decimal) -> int | None:
     return int(((current - previous) / previous) * 100)
 
 
-# A checklist row is a manually-entered fixed obligation (recurring template or
-# an ad-hoc "big expense" you typed in) — never an imported one. This is what
-# keeps a multi-line card statement from flooding the checklist with dozens of
-# editable rows: imported fixed-categorized charges (e.g. subscriptions) fall
-# through to `big_rows` (aggregated by category) instead.
-_CHECKLIST_Q = Q(category__kind=Category.Kind.FIXED, source=Transaction.Source.MANUAL)
-
-
-def _group_checklist(fixed_rows: list) -> list[dict]:
-    """Cluster checklist rows by category.parent (e.g. "Gastos Vivienda").
-
-    Each group keeps the rows' existing pending-first order; named groups come
-    first (alphabetically), ungrouped rows go last. If everything is ungrouped
-    this collapses to a single unlabeled group, same look as before grouping.
-    """
-    groups: dict[int | None, dict] = {}
-    order: list[int | None] = []
-    for tx in fixed_rows:
-        parent = tx.category.parent if tx.category else None
-        key = parent.id if parent else None
-        if key not in groups:
-            groups[key] = {"name": parent.name if parent else None, "rows": []}
-            order.append(key)
-        groups[key]["rows"].append(tx)
-    order.sort(key=lambda k: (k is None, groups[k]["name"] or ""))
-    return [groups[k] for k in order]
+# The checklist holds the fixed obligations you declared as recurring (rent,
+# prepaid health, services...). They are the "did I pay everything?" rows. A
+# category no longer decides this: only being a recurring expense does. Ad-hoc
+# big expenses fall through to `big_rows` instead.
+_CHECKLIST_Q = Q(recurring_expense__isnull=False)
 
 
 def _month_context(user, period: str) -> dict:
@@ -145,22 +124,21 @@ def _month_context(user, period: str) -> dict:
     is_card = Q(wallet__kind=Wallet.Kind.CREDIT_CARD)
     expenses = all_expenses.exclude(is_card)
 
-    # The star: the big-expenses checklist (Excel-style "did I pay everything?").
+    # The star: the fixed-obligations checklist (Excel-style "did I pay all?").
     fixed_rows = list(
         expenses.filter(_CHECKLIST_Q)
-        .select_related("wallet", "category", "category__parent")
+        .select_related("wallet", "category")
         .order_by("is_paid", "date", "id")
     )
 
-    # Split the rest (non-checklist) into "grandes" vs "hormiga" by AMOUNT, not
-    # category: a small loose expense is hormiga; a big one is grande. Fixed
-    # obligations (e.g. imported subscriptions) are planned spend and stay in
-    # grandes even when small. Threshold is per-user, editable in Ajustes.
+    # Split the rest (non-checklist) into "grandes" vs "hormiga" by AMOUNT, never
+    # by category: a small loose expense is hormiga; a big one is grande.
+    # Threshold is per-user, editable in Ajustes.
     zero = Decimal("0.00")
     rest = expenses.exclude(_CHECKLIST_Q).annotate(_own=own)
-    # Hormiga = not forced-big, not fixed, and (when auto is on) below the threshold.
-    # With auto off, only an explicit "es un gasto grande" tick pulls it into grandes.
-    is_hormiga = ~Q(is_big=True) & ~Q(category__kind=Category.Kind.FIXED)
+    # Hormiga = not forced-big and (when auto is on) below the threshold. With
+    # auto off, only an explicit "es un gasto grande" tick pulls it into grandes.
+    is_hormiga = ~Q(is_big=True)
     if user.auto_big_expenses:
         is_hormiga &= Q(_own__lt=user.ant_threshold)
 
@@ -183,7 +161,6 @@ def _month_context(user, period: str) -> dict:
             {
                 "category": key,
                 "category__name": cat.name if cat else None,
-                "category__kind": cat.kind if cat else None,
                 "category__icon": cat.icon if cat else None,
                 "total": sum((t.own_amount for t in txs), zero),
                 "count": len(txs),
@@ -206,7 +183,6 @@ def _month_context(user, period: str) -> dict:
             {
                 "category": key,
                 "category__name": cat.name if cat else None,
-                "category__kind": cat.kind if cat else None,
                 "category__icon": cat.icon if cat else None,
                 "total": sum((t.own_amount for t in txs), zero),
                 "count": len(txs),
@@ -307,7 +283,6 @@ def _month_context(user, period: str) -> dict:
         "next_period": _shift_period(period, 1),
         "is_current": period == _current_period(),
         "fixed_rows": fixed_rows,
-        "fixed_groups": _group_checklist(fixed_rows),
         "big_rows": big_rows,
         "statement_rows": statement_rows,
         "ant_rows": ant_rows,
@@ -317,9 +292,7 @@ def _month_context(user, period: str) -> dict:
         "wallets": Wallet.objects.filter(owner=user, is_active=True),
         # Group-only categories (e.g. "Gastos Vivienda") aren't selectable
         # directly — only their children are. Single add form uses these chips.
-        "quick_categories": Category.objects.filter(owner=user, children__isnull=True).order_by(
-            "kind", "name"
-        ),
+        "quick_categories": Category.objects.filter(owner=user).order_by("name"),
     }
 
 
@@ -456,9 +429,7 @@ def _category_detail_context(user, period: str, category_id: int) -> dict:
         "nav_active": "month",
         # For the inline edit form rendered per row.
         "wallets": Wallet.objects.filter(owner=user, is_active=True),
-        "edit_categories": Category.objects.filter(owner=user, children__isnull=True).order_by(
-            "kind", "name"
-        ),
+        "edit_categories": Category.objects.filter(owner=user).order_by("name"),
     }
 
 
@@ -662,9 +633,7 @@ def _statement_context(user, wallet, period: str) -> dict:
         "count": len(rows),
         "unreviewed": sum(1 for t in rows if t.needs_review),
         "is_paid": statement.is_paid if statement else False,
-        "categories": Category.objects.filter(owner=user, children__isnull=True).order_by(
-            "kind", "name"
-        ),
+        "categories": Category.objects.filter(owner=user).order_by("name"),
         "nav_active": "month",
     }
 

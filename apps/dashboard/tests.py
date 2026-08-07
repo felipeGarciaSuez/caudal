@@ -34,7 +34,7 @@ def wallet(user):
 
 @pytest.fixture
 def category(user):
-    return Category.objects.create(owner=user, name="Café", kind=Category.Kind.ANT)
+    return Category.objects.create(owner=user, name="Café")
 
 
 def test_home_redirects_to_current_month(client_logged):
@@ -266,7 +266,7 @@ def test_income_source_scoped_to_owner(client_logged, django_user_model):
 def test_checklist_big_expense_can_be_deleted(client_logged, user, wallet):
     """A big expense that lands in the checklist (fixed category) can be deleted
     from the month view -- before, only single big_rows had a delete button."""
-    fix = Category.objects.create(owner=user, name="Alquiler", kind=Category.Kind.FIXED)
+    fix = Category.objects.create(owner=user, name="Alquiler")
     tx = Transaction.objects.create(
         owner=user,
         wallet=wallet,
@@ -287,16 +287,22 @@ def test_checklist_big_expense_can_be_deleted(client_logged, user, wallet):
 
 
 def test_toggle_paid_scope_month_returns_body_with_summary(client_logged, user, wallet):
-    fixed = Category.objects.create(owner=user, name="Alquiler", kind=Category.Kind.FIXED)
-    tx = Transaction.objects.create(
+    from apps.budgets.models import RecurringExpense
+    from apps.budgets.services import ensure_month_fixed
+
+    period = timezone.localdate().strftime("%Y-%m")
+    cat = Category.objects.create(owner=user, name="Alquiler")
+    RecurringExpense.objects.create(
         owner=user,
+        name="Alquiler",
+        default_amount=Decimal("480000"),
+        category=cat,
         wallet=wallet,
-        category=fixed,
-        amount=Decimal("480000"),
-        kind=Transaction.Kind.EXPENSE,
-        date="2026-06-03",
-        is_paid=False,
+        day_of_month=3,
     )
+    ensure_month_fixed(user, period)
+    tx = Transaction.objects.get(owner=user, recurring_expense__isnull=False)
+
     resp = client_logged.post(reverse("dashboard:toggle_paid", args=[tx.id]), {"scope": "month"})
     assert resp.status_code == 200
     tx.refresh_from_db()
@@ -307,7 +313,7 @@ def test_toggle_paid_scope_month_returns_body_with_summary(client_logged, user, 
 
 
 def test_update_amount_changes_fixed_expense(client_logged, user, wallet):
-    fixed = Category.objects.create(owner=user, name="Luz", kind=Category.Kind.FIXED)
+    fixed = Category.objects.create(owner=user, name="Luz")
     tx = Transaction.objects.create(
         owner=user,
         wallet=wallet,
@@ -326,7 +332,7 @@ def test_update_amount_changes_fixed_expense(client_logged, user, wallet):
 
 
 def test_update_amount_rejects_invalid(client_logged, user, wallet):
-    fixed = Category.objects.create(owner=user, name="Gas", kind=Category.Kind.FIXED)
+    fixed = Category.objects.create(owner=user, name="Gas")
     tx = Transaction.objects.create(
         owner=user,
         wallet=wallet,
@@ -355,14 +361,16 @@ def test_cannot_toggle_other_users_transaction(client_logged, django_user_model,
     assert resp.status_code == 404
 
 
-def test_imported_fixed_expense_is_aggregated_not_checklist(client_logged, user, wallet):
+def test_imported_expense_is_aggregated_not_checklist(client_logged, user, wallet):
+    """An imported expense (not recurring) never lands in the checklist; a big
+    one aggregates under big_rows."""
     period = timezone.localdate().strftime("%Y-%m")
-    subs = Category.objects.create(owner=user, name="Suscripciones", kind=Category.Kind.FIXED)
+    subs = Category.objects.create(owner=user, name="Suscripciones")
     Transaction.objects.create(
         owner=user,
         wallet=wallet,
         category=subs,
-        amount=Decimal("5000"),
+        amount=Decimal("50000"),  # over the threshold -> grande
         kind=Transaction.Kind.EXPENSE,
         date=timezone.localdate(),
         source=Transaction.Source.IMPORT,
@@ -372,29 +380,34 @@ def test_imported_fixed_expense_is_aggregated_not_checklist(client_logged, user,
     assert resp.context["m"]["fixed_count"] == 0
     big_names = {r["category__name"] for r in resp.context["big_rows"]}
     assert "Suscripciones" in big_names
-    # Still counted toward the month total, just not as a checklist row.
-    assert resp.context["m"]["big_total"] == Decimal("5000.00")
+    assert resp.context["m"]["big_total"] == Decimal("50000.00")
 
 
-def test_manual_fixed_expense_is_checklist_row(client_logged, user, wallet):
+def test_recurring_expense_is_checklist_row(client_logged, user, wallet):
+    """The checklist holds the fixed obligations declared as recurring, not
+    whatever falls in a certain category."""
+    from apps.budgets.models import RecurringExpense
+    from apps.budgets.services import ensure_month_fixed
+
     period = timezone.localdate().strftime("%Y-%m")
-    fixed = Category.objects.create(owner=user, name="Alquiler", kind=Category.Kind.FIXED)
-    Transaction.objects.create(
+    cat = Category.objects.create(owner=user, name="Alquiler")
+    RecurringExpense.objects.create(
         owner=user,
+        name="Alquiler",
+        default_amount=Decimal("100000"),
+        category=cat,
         wallet=wallet,
-        category=fixed,
-        amount=Decimal("100000"),
-        kind=Transaction.Kind.EXPENSE,
-        date=timezone.localdate(),
+        day_of_month=1,
     )
+    ensure_month_fixed(user, period)
     resp = client_logged.get(reverse("dashboard:month", args=[period]))
     assert len(resp.context["fixed_rows"]) == 1
-    assert resp.context["fixed_rows"][0].category == fixed
+    assert resp.context["fixed_rows"][0].category == cat
 
 
 def test_variable_big_expense_shows_in_grandes_not_hormiga(client_logged, user, wallet):
     period = timezone.localdate().strftime("%Y-%m")
-    super_cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
+    super_cat = Category.objects.create(owner=user, name="Super")
     Transaction.objects.create(
         owner=user,
         wallet=wallet,
@@ -431,35 +444,36 @@ def test_loose_small_expense_goes_to_hormiga(client_logged, user, wallet):
 def test_small_variable_expense_is_hormiga_by_amount(client_logged, user, wallet):
     """Classification is by amount: a small variable expense counts as hormiga."""
     period = timezone.localdate().strftime("%Y-%m")
-    cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
+    cat = Category.objects.create(owner=user, name="Super")
     _variable_expense(user, wallet, cat, "5000", timezone.localdate())
     resp = client_logged.get(reverse("dashboard:month", args=[period]))
     assert {r["category__name"] for r in resp.context["big_rows"]} == set()
     assert "Super" in {r["category__name"] for r in resp.context["ant_rows"]}
 
 
-def test_small_fixed_expense_stays_in_grandes(client_logged, user, wallet):
-    """Fixed obligations are planned spend: never hormiga, even below threshold."""
+def test_small_expense_is_hormiga_regardless_of_category(client_logged, user, wallet):
+    """A category never forces 'grande' anymore: a small expense is hormiga even
+    in a category that used to be 'fixed' (e.g. Salud)."""
     period = timezone.localdate().strftime("%Y-%m")
-    subs = Category.objects.create(owner=user, name="Suscripciones", kind=Category.Kind.FIXED)
+    salud = Category.objects.create(owner=user, name="Salud")
     Transaction.objects.create(
         owner=user,
         wallet=wallet,
-        category=subs,
-        amount=Decimal("4000"),
+        category=salud,
+        amount=Decimal("4000"),  # below the 20000 threshold
         kind=Transaction.Kind.EXPENSE,
         date=timezone.localdate(),
-        source=Transaction.Source.IMPORT,
     )
     resp = client_logged.get(reverse("dashboard:month", args=[period]))
-    assert "Suscripciones" in {r["category__name"] for r in resp.context["big_rows"]}
-    assert resp.context["ant_rows"] == []
+    assert resp.context["fixed_rows"] == []
+    assert "Salud" in {r["category__name"] for r in resp.context["ant_rows"]}
+    assert resp.context["big_rows"] == []
 
 
 def test_ant_threshold_is_configurable(client_logged, user, wallet):
     """Raising the threshold reclassifies a mid-size expense from grande to hormiga."""
     period = timezone.localdate().strftime("%Y-%m")
-    cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
+    cat = Category.objects.create(owner=user, name="Super")
     _variable_expense(user, wallet, cat, "25000", timezone.localdate())
     # Default threshold 20000: 25000 is a gasto grande.
     resp = client_logged.get(reverse("dashboard:month", args=[period]))
@@ -502,7 +516,7 @@ def test_auto_off_large_expense_is_hormiga_unless_marked(client_logged, user, wa
     period = timezone.localdate().strftime("%Y-%m")
     user.auto_big_expenses = False
     user.save(update_fields=["auto_big_expenses"])
-    cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
+    cat = Category.objects.create(owner=user, name="Super")
     loose = _variable_expense(user, wallet, cat, "90000", timezone.localdate())
     marked = _variable_expense(user, wallet, cat, "50000", timezone.localdate())
     marked.is_big = True
@@ -533,117 +547,49 @@ def test_categorizacion_section_removed(client_logged, user, wallet):
     assert "Categorización" not in body
     assert "combined_rows" not in resp.context
 
+def test_total_spent_splits_checklist_big_and_hormiga(client_logged, user, wallet):
+    """Checklist = recurring, grande/hormiga = by amount; total_spent is the sum."""
+    from apps.budgets.models import RecurringExpense
+    from apps.budgets.services import ensure_month_fixed
 
-def test_checklist_groups_vivienda_together(client_logged, user, wallet):
     period = timezone.localdate().strftime("%Y-%m")
-    vivienda = Category.objects.create(owner=user, name="Gastos Vivienda", kind=Category.Kind.FIXED)
-    alquiler = Category.objects.create(
-        owner=user, name="Alquiler", kind=Category.Kind.FIXED, parent=vivienda
-    )
-    agua = Category.objects.create(
-        owner=user, name="Agua", kind=Category.Kind.FIXED, parent=vivienda
-    )
-    telefono = Category.objects.create(owner=user, name="Teléfono", kind=Category.Kind.FIXED)
     today = timezone.localdate()
-    for cat, amount in [(alquiler, "100000"), (agua, "5000"), (telefono, "10000")]:
-        Transaction.objects.create(
-            owner=user,
-            wallet=wallet,
-            category=cat,
-            amount=Decimal(amount),
-            kind=Transaction.Kind.EXPENSE,
-            date=today,
-        )
-    resp = client_logged.get(reverse("dashboard:month", args=[period]))
-    groups = resp.context["fixed_groups"]
-    assert len(groups) == 2
-    names_by_group = [{tx.category.name for tx in g["rows"]} for g in groups]
-    assert {"Alquiler", "Agua"} in names_by_group
-    assert {"Teléfono"} in names_by_group
-    body = resp.content.decode()
-    assert "Gastos Vivienda" in body
-    assert "Otros" in body
-
-
-def test_checklist_single_group_shows_no_label(client_logged, user, wallet):
-    period = timezone.localdate().strftime("%Y-%m")
-    fixed = Category.objects.create(owner=user, name="Alquiler", kind=Category.Kind.FIXED)
-    Transaction.objects.create(
+    alq = Category.objects.create(owner=user, name="Alquiler")
+    super_cat = Category.objects.create(owner=user, name="Super")
+    ant_cat = Category.objects.create(owner=user, name="Café")
+    # Recurring -> checklist.
+    RecurringExpense.objects.create(
         owner=user,
+        name="Alquiler",
+        default_amount=Decimal("100000"),
+        category=alq,
         wallet=wallet,
-        category=fixed,
-        amount=Decimal("100000"),
-        kind=Transaction.Kind.EXPENSE,
-        date=timezone.localdate(),
+        day_of_month=1,
     )
-    resp = client_logged.get(reverse("dashboard:month", args=[period]))
-    assert len(resp.context["fixed_groups"]) == 1
-    assert "fx-group-label" not in resp.content.decode()
-
-
-def test_group_category_excluded_from_selectors(client_logged, user):
-    period = timezone.localdate().strftime("%Y-%m")
-    vivienda = Category.objects.create(owner=user, name="Gastos Vivienda", kind=Category.Kind.FIXED)
-    Category.objects.create(owner=user, name="Alquiler", kind=Category.Kind.FIXED, parent=vivienda)
-    resp = client_logged.get(reverse("dashboard:month", args=[period]))
-    quick_names = {c.name for c in resp.context["quick_categories"]}
-    assert "Gastos Vivienda" not in quick_names
-    assert "Alquiler" in quick_names
-
-
-def test_total_spent_unaffected_by_regrouping(client_logged, user, wallet):
-    period = timezone.localdate().strftime("%Y-%m")
-    fixed_cat = Category.objects.create(owner=user, name="Alquiler", kind=Category.Kind.FIXED)
-    subs_cat = Category.objects.create(owner=user, name="Suscripciones", kind=Category.Kind.FIXED)
-    super_cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
-    ant_cat = Category.objects.create(owner=user, name="Café", kind=Category.Kind.ANT)
-    today = timezone.localdate()
+    ensure_month_fixed(user, period)
+    # Big by amount (>= 20000 threshold).
     Transaction.objects.create(
-        owner=user,
-        wallet=wallet,
-        category=fixed_cat,
-        amount=Decimal("100000"),
-        kind=Transaction.Kind.EXPENSE,
-        date=today,
-    )  # checklist (manual, fixed)
+        owner=user, wallet=wallet, category=super_cat, amount=Decimal("20000"),
+        kind=Transaction.Kind.EXPENSE, date=today,
+    )
+    # Hormiga (< threshold).
     Transaction.objects.create(
-        owner=user,
-        wallet=wallet,
-        category=subs_cat,
-        amount=Decimal("5000"),
-        kind=Transaction.Kind.EXPENSE,
-        date=today,
-        source=Transaction.Source.IMPORT,
-    )  # aggregated (imported, fixed)
-    Transaction.objects.create(
-        owner=user,
-        wallet=wallet,
-        category=super_cat,
-        amount=Decimal("20000"),
-        kind=Transaction.Kind.EXPENSE,
-        date=today,
-    )  # aggregated (variable)
-    Transaction.objects.create(
-        owner=user,
-        wallet=wallet,
-        category=ant_cat,
-        amount=Decimal("3000"),
-        kind=Transaction.Kind.EXPENSE,
-        date=today,
-    )  # hormiga
+        owner=user, wallet=wallet, category=ant_cat, amount=Decimal("3000"),
+        kind=Transaction.Kind.EXPENSE, date=today,
+    )
     resp = client_logged.get(reverse("dashboard:month", args=[period]))
     m = resp.context["m"]
-    assert m["fixed_total"] == Decimal("100000.00")
-    assert m["big_total"] == Decimal("25000.00")
+    assert m["fixed_total"] == Decimal("100000.00")  # checklist = recurring
+    assert m["big_total"] == Decimal("20000.00")
     assert m["ant"] == Decimal("3000.00")
-    assert m["total_spent"] == Decimal("128000.00")
+    assert m["total_spent"] == Decimal("123000.00")
 
 
 def test_hormiga_panel_ranks_ant_categories(client_logged, user, wallet):
     period = timezone.localdate().strftime("%Y-%m")
     today = timezone.localdate()
-    cafe = Category.objects.create(owner=user, name="Café", kind=Category.Kind.ANT)
-    deli = Category.objects.create(owner=user, name="Delivery", kind=Category.Kind.ANT)
+    cafe = Category.objects.create(owner=user, name="Café")
+    deli = Category.objects.create(owner=user, name="Delivery")
     Transaction.objects.create(
         owner=user,
         wallet=wallet,
@@ -670,7 +616,7 @@ def test_hormiga_panel_ranks_ant_categories(client_logged, user, wallet):
 def test_hormiga_rows_carry_individual_movements(client_logged, user, wallet):
     period = timezone.localdate().strftime("%Y-%m")
     today = timezone.localdate()
-    cafe = Category.objects.create(owner=user, name="Café", kind=Category.Kind.ANT)
+    cafe = Category.objects.create(owner=user, name="Café")
     Transaction.objects.create(
         owner=user,
         wallet=wallet,
@@ -716,7 +662,7 @@ def _variable_expense(user, wallet, cat, amount, date, **kw):
 
 def test_delete_transaction_removes_and_rerenders_month(client_logged, user, wallet):
     period = timezone.localdate().strftime("%Y-%m")
-    cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
+    cat = Category.objects.create(owner=user, name="Super")
     tx = _variable_expense(user, wallet, cat, "12000", timezone.localdate())
     resp = client_logged.post(
         reverse("dashboard:delete_transaction", args=[tx.id]),
@@ -744,8 +690,8 @@ def test_cannot_delete_other_users_transaction(client_logged, django_user_model)
 
 def test_edit_transaction_updates_fields(client_logged, user, wallet):
     period = timezone.localdate().strftime("%Y-%m")
-    cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
-    other = Category.objects.create(owner=user, name="Ocio", kind=Category.Kind.VARIABLE)
+    cat = Category.objects.create(owner=user, name="Super")
+    other = Category.objects.create(owner=user, name="Ocio")
     tx = _variable_expense(user, wallet, cat, "12000", timezone.localdate())
     resp = client_logged.post(
         reverse("dashboard:edit_transaction", args=[tx.id]),
@@ -769,7 +715,7 @@ def test_edit_transaction_updates_fields(client_logged, user, wallet):
 
 
 def test_edit_transaction_invalid_returns_400(client_logged, user, wallet):
-    cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
+    cat = Category.objects.create(owner=user, name="Super")
     tx = _variable_expense(user, wallet, cat, "12000", timezone.localdate())
     resp = client_logged.post(
         reverse("dashboard:edit_transaction", args=[tx.id]),
@@ -788,7 +734,7 @@ def test_edit_transaction_invalid_returns_400(client_logged, user, wallet):
 
 def test_big_row_single_movement_is_editable(client_logged, user, wallet):
     period = timezone.localdate().strftime("%Y-%m")
-    cat = Category.objects.create(owner=user, name="Seguro", kind=Category.Kind.VARIABLE)
+    cat = Category.objects.create(owner=user, name="Seguro")
     tx = _variable_expense(user, wallet, cat, "25000", timezone.localdate())
     resp = client_logged.get(reverse("dashboard:month", args=[period]))
     rows = {r["category__name"]: r for r in resp.context["big_rows"]}
@@ -799,7 +745,7 @@ def test_big_row_single_movement_is_editable(client_logged, user, wallet):
 
 def test_big_row_aggregates_when_multiple(client_logged, user, wallet):
     period = timezone.localdate().strftime("%Y-%m")
-    cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
+    cat = Category.objects.create(owner=user, name="Super")
     # Both above the hormiga threshold so they land in "grandes" (this test is
     # about grouping several movements into one row, not the hormiga split).
     _variable_expense(user, wallet, cat, "30000", timezone.localdate())
@@ -813,7 +759,7 @@ def test_big_row_aggregates_when_multiple(client_logged, user, wallet):
 
 def test_delete_from_detail_rerenders_detail_body(client_logged, user, wallet):
     period = timezone.localdate().strftime("%Y-%m")
-    cat = Category.objects.create(owner=user, name="Super", kind=Category.Kind.VARIABLE)
+    cat = Category.objects.create(owner=user, name="Super")
     tx = _variable_expense(user, wallet, cat, "12000", timezone.localdate())
     resp = client_logged.post(
         reverse("dashboard:delete_transaction", args=[tx.id]),
@@ -896,7 +842,7 @@ def test_toggle_statement_paid_persists(client_logged, user):
 def test_statement_charge_update_sets_category_and_share(client_logged, user):
     card = _card(user)
     tx = _card_charge(user, card, "10000")
-    cat = Category.objects.create(owner=user, name="Súper", kind=Category.Kind.VARIABLE)
+    cat = Category.objects.create(owner=user, name="Súper")
     resp = client_logged.post(
         reverse("dashboard:statement_charge_update", args=[tx.id]),
         {"category": cat.id, "share_pct": "50"},

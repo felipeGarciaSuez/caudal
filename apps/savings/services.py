@@ -120,7 +120,7 @@ def ahorro_category(user):
     cat, _ = Category.objects.get_or_create(
         owner=user,
         name=AHORRO_CATEGORY_NAME,
-        defaults={"kind": Category.Kind.VARIABLE, "icon": "piggy-bank"},
+        defaults={"icon": "piggy-bank"},
     )
     return cat
 

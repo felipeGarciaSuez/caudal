@@ -21,8 +21,8 @@ def wallet(user):
     return Wallet.objects.create(owner=user, name="ICBC", kind=Wallet.Kind.BANK)
 
 
-def _cat(user, name, kind):
-    return Category.objects.create(owner=user, name=name, kind=kind)
+def _cat(user, name):
+    return Category.objects.create(owner=user, name=name)
 
 
 def _expense(user, wallet, category, amount, when):
@@ -37,7 +37,7 @@ def _expense(user, wallet, category, amount, when):
 
 
 def test_ensure_month_fixed_generates_pending_and_is_idempotent(user, wallet):
-    cat = _cat(user, "Alquiler", Category.Kind.FIXED)
+    cat = _cat(user, "Alquiler")
     template = RecurringExpense.objects.create(
         owner=user,
         name="Alquiler",
@@ -61,7 +61,7 @@ def test_ensure_month_fixed_generates_pending_and_is_idempotent(user, wallet):
 
 
 def test_ensure_month_fixed_clamps_day_to_month_length(user, wallet):
-    cat = _cat(user, "Teléfono", Category.Kind.FIXED)
+    cat = _cat(user, "Teléfono")
     RecurringExpense.objects.create(
         owner=user,
         name="Teléfono",
@@ -76,7 +76,7 @@ def test_ensure_month_fixed_clamps_day_to_month_length(user, wallet):
 
 
 def test_ensure_month_fixed_skips_inactive_templates(user, wallet):
-    cat = _cat(user, "Gym", Category.Kind.FIXED)
+    cat = _cat(user, "Gym")
     RecurringExpense.objects.create(
         owner=user,
         name="Gym",
@@ -90,15 +90,15 @@ def test_ensure_month_fixed_skips_inactive_templates(user, wallet):
 
 
 def test_period_is_derived_from_date(user, wallet):
-    cat = _cat(user, "Super", Category.Kind.VARIABLE)
+    cat = _cat(user, "Super")
     tx = _expense(user, wallet, cat, "1000.00", date(2026, 6, 15))
     assert tx.period == "2026-06"
 
 
 def test_remaining_and_breakdown(user, wallet):
-    fixed = _cat(user, "Alquiler", Category.Kind.FIXED)
-    variable = _cat(user, "Super", Category.Kind.VARIABLE)
-    ant = _cat(user, "Café", Category.Kind.ANT)
+    fixed = _cat(user, "Alquiler")
+    variable = _cat(user, "Super")
+    ant = _cat(user, "Café")
 
     _expense(user, wallet, fixed, "500000.00", date(2026, 6, 1))
     _expense(user, wallet, variable, "120000.00", date(2026, 6, 10))
@@ -110,9 +110,6 @@ def test_remaining_and_breakdown(user, wallet):
         owner=user, period="2026-06", expected_income=Decimal("1800000.00")
     )
 
-    assert budget.total_fixed == Decimal("500000.00")
-    assert budget.total_variable == Decimal("120000.00")
-    assert budget.total_ant == Decimal("8000.00")
     assert budget.total_spent == Decimal("628000.00")
     assert budget.remaining == Decimal("1172000.00")
 
@@ -126,7 +123,7 @@ def test_remaining_with_no_expenses_equals_income(user):
 
 
 def test_needs_review_expenses_do_not_count(user, wallet):
-    cat = _cat(user, "Super", Category.Kind.VARIABLE)
+    cat = _cat(user, "Super")
     _expense(user, wallet, cat, "50000.00", date(2026, 6, 5))
     # A card item pending review must not count until confirmed.
     Transaction.objects.create(
@@ -145,7 +142,7 @@ def test_needs_review_expenses_do_not_count(user, wallet):
 
 
 def test_shared_expense_counts_only_own_part(user, wallet):
-    cat = _cat(user, "Alquiler", Category.Kind.FIXED)
+    cat = _cat(user, "Alquiler")
     Transaction.objects.create(
         owner=user,
         wallet=wallet,
@@ -164,7 +161,7 @@ def test_shared_expense_counts_only_own_part(user, wallet):
 
 
 def test_own_amount_applies_shared_ratio(user, wallet):
-    cat = _cat(user, "Expensas", Category.Kind.FIXED)
+    cat = _cat(user, "Expensas")
     tx = Transaction.objects.create(
         owner=user,
         wallet=wallet,
@@ -179,7 +176,7 @@ def test_own_amount_applies_shared_ratio(user, wallet):
 
 
 def test_own_amount_full_when_not_shared(user, wallet):
-    cat = _cat(user, "Nafta", Category.Kind.VARIABLE)
+    cat = _cat(user, "Nafta")
     tx = _expense(user, wallet, cat, "45000.00", date(2026, 6, 1))
     assert tx.own_amount == Decimal("45000.00")
 
@@ -195,7 +192,7 @@ def client_logged(client, user):
 
 @pytest.fixture
 def fixed_cat(user):
-    return Category.objects.create(owner=user, name="Alquiler", kind=Category.Kind.FIXED)
+    return Category.objects.create(owner=user, name="Alquiler")
 
 
 def _payload(cat, wallet, **over):
@@ -241,16 +238,6 @@ def test_add_recurring_rejects_bad_amount(client_logged, wallet, fixed_cat):
     )
     assert resp.status_code == 400
     assert RecurringExpense.objects.count() == 0
-
-
-def test_add_recurring_rejects_non_fixed_category(client_logged, user, wallet):
-    from django.urls import reverse
-
-    ant = Category.objects.create(owner=user, name="Café", kind=Category.Kind.ANT)
-    resp = client_logged.post(reverse("budgets:add_recurring"), _payload(ant, wallet))
-    assert resp.status_code == 400
-    assert RecurringExpense.objects.count() == 0
-
 
 def test_update_recurring_changes_fields(client_logged, user, wallet, fixed_cat):
     from django.urls import reverse
@@ -329,7 +316,7 @@ def test_user_cannot_touch_another_users_template(
 
     other = django_user_model.objects.create_user(username="otro", password="x")
     other_wallet = Wallet.objects.create(owner=other, name="X", kind=Wallet.Kind.BANK)
-    other_cat = Category.objects.create(owner=other, name="Alq", kind=Category.Kind.FIXED)
+    other_cat = Category.objects.create(owner=other, name="Alq")
     r = RecurringExpense.objects.create(
         owner=other,
         name="Ajeno",

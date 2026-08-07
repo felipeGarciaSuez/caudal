@@ -23,33 +23,29 @@ WALLETS = [
     ("Efectivo", Wallet.Kind.CASH),
 ]
 
-# (name, kind, icon) — icon is a Lucide icon name (see apps/dashboard/templatetags/icons.py).
-# Broad buckets on purpose: a specific bill (Flow, TGI, Expensas, Gym) is NOT a
-# category, it's the *description* of a fixed expense the user loads under one of
-# these. The monthly checklist labels each row by that description, so keeping
-# categories general avoids a taxonomy cluttered with one-off line items.
-# This is only a starting point: every category is editable/removable from the app.
+# (name, icon) — icon is a Lucide icon name (see apps/dashboard/templatetags/icons.py).
+# Categories are just labels: whether a given expense is fixed/big/hormiga is
+# decided per-expense (recurrence / amount / manual flag), not by the category.
+# Broad buckets on purpose. This is only a starting point: every category is
+# editable/removable from the app.
 CATEGORIES = [
-    # Fijos: obligaciones recurrentes (alquiler, servicios, suscripciones...).
-    ("Vivienda", Category.Kind.FIXED, "home"),
-    ("Servicios", Category.Kind.FIXED, "lightbulb"),
-    ("Suscripciones", Category.Kind.FIXED, "tv"),
-    ("Salud", Category.Kind.FIXED, "heart-pulse"),
-    ("Impuestos", Category.Kind.FIXED, "receipt"),
-    # Variables: gasto necesario pero que cambia mes a mes.
-    ("Supermercado", Category.Kind.VARIABLE, "shopping-cart"),
-    ("Nafta", Category.Kind.VARIABLE, "fuel"),
-    ("Farmacia", Category.Kind.VARIABLE, "pill"),
-    ("Ropa", Category.Kind.VARIABLE, "shirt"),
-    ("Hogar", Category.Kind.VARIABLE, "sofa"),
-    ("Ocio", Category.Kind.VARIABLE, "tv"),
-    # Hormiga: los chicos y frecuentes, el foco de la app.
-    ("Delivery", Category.Kind.ANT, "bike"),
-    ("Kiosco", Category.Kind.ANT, "cookie"),
-    ("Café", Category.Kind.ANT, "coffee"),
-    ("Transporte/Uber", Category.Kind.ANT, "car"),
-    ("Apps", Category.Kind.ANT, "layout-grid"),
-    ("Compras chicas", Category.Kind.ANT, "shopping-bag"),
+    ("Vivienda", "home"),
+    ("Servicios", "lightbulb"),
+    ("Suscripciones", "tv"),
+    ("Salud", "heart-pulse"),
+    ("Impuestos", "receipt"),
+    ("Supermercado", "shopping-cart"),
+    ("Nafta", "fuel"),
+    ("Farmacia", "pill"),
+    ("Ropa", "shirt"),
+    ("Hogar", "sofa"),
+    ("Ocio", "tv"),
+    ("Delivery", "bike"),
+    ("Kiosco", "cookie"),
+    ("Café", "coffee"),
+    ("Transporte/Uber", "car"),
+    ("Apps", "layout-grid"),
+    ("Compras chicas", "shopping-bag"),
 ]
 
 # keyword -> category name. Keywords match (case-insensitive) inside the description.
@@ -138,9 +134,9 @@ def seed_categories(user):
     """
     created = 0
     categories = {}
-    for name, kind, icon in CATEGORIES:
+    for name, icon in CATEGORIES:
         cat, was_created = Category.objects.get_or_create(
-            owner=user, name=name, defaults={"kind": kind, "icon": icon}
+            owner=user, name=name, defaults={"icon": icon}
         )
         # Keep the icon in sync (e.g. migrating older emoji icons to Lucide names).
         if not was_created and cat.icon != icon:
