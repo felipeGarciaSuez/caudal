@@ -462,13 +462,34 @@ def _upload(client_logged, wallet, source, text, name="f.csv"):
 def test_import_persists_and_links_batch(client_logged, user):
     mp = Wallet.objects.create(owner=user, name="Mercado Pago", kind=Wallet.Kind.WALLET)
     resp = _upload(
-        client_logged, mp, "generic_csv", "Fecha;Descripción;Monto\n10/06/2026;KIOSCO;-1500\n"
+        client_logged, mp, "mercadopago", "Fecha;Descripción;Monto\n10/06/2026;KIOSCO;-1500\n"
     )
     # A wallet import stays on the import page (no card review to jump to).
     assert resp.status_code == 200
     tx = Transaction.objects.get(owner=user)
     batch = ImportBatch.objects.get(owner=user)
     assert tx.import_batch_id == batch.id  # linked, so deleting the batch removes it
+
+
+def test_import_card_to_non_card_wallet_is_rejected(client_logged, user):
+    """A card statement must go to a credit_card wallet, never a bank/wallet.
+
+    This is the bug where a resumen imported into a bank account landed as loose
+    expenses instead of grouping into the card statement.
+    """
+    bank = Wallet.objects.create(owner=user, name="ICBC", kind=Wallet.Kind.BANK)
+    resp = _upload(client_logged, bank, "card_icbc", "x", "resumen.pdf")
+    assert resp.status_code == 200  # re-renders the form with an error
+    assert Transaction.objects.filter(owner=user).count() == 0
+    assert "billetera de tipo" in resp.content.decode()
+
+
+def test_import_source_choices_are_restricted(client_logged, user):
+    """Only the sources that actually work are offered (no Ualá/Galicia/genérico)."""
+    resp = client_logged.get(reverse("imports:import"))
+    body = resp.content.decode()
+    assert "Tarjeta ICBC" in body and "Banco ICBC" in body and "Mercado Pago" in body
+    assert "Ualá" not in body and "Personal Pay" not in body and "Galicia" not in body
 
 
 def test_import_card_redirects_to_statement_review(client_logged, user):
@@ -485,7 +506,7 @@ def test_import_card_redirects_to_statement_review(client_logged, user):
 
 def test_import_delete_removes_batch_and_its_movements(client_logged, user):
     mp = Wallet.objects.create(owner=user, name="Mercado Pago", kind=Wallet.Kind.WALLET)
-    _upload(client_logged, mp, "generic_csv", "Fecha;Descripción;Monto\n10/06/2026;KIOSCO;-1500\n")
+    _upload(client_logged, mp, "mercadopago", "Fecha;Descripción;Monto\n10/06/2026;KIOSCO;-1500\n")
     batch = ImportBatch.objects.get(owner=user)
     assert Transaction.objects.filter(owner=user).count() == 1
 

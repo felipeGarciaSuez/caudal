@@ -8,7 +8,7 @@ from django.views.decorators.http import require_POST
 from apps.transactions.models import Category, Transaction
 from apps.wallets.models import Wallet
 
-from .forms import ImportUploadForm
+from .forms import SOURCE_WALLET_KINDS, ImportUploadForm
 from .models import CategoryRule, ImportBatch
 from .services import ParseError, run_import
 
@@ -65,6 +65,12 @@ def import_view(request):
         .select_related("wallet")
         .annotate(n_txs=Count("transactions"))[:10]
     )
+    # For the client-side filter: wallets with their kind, and which kinds each
+    # source accepts, so picking a source narrows the wallet list to compatible ones.
+    wallets = list(
+        Wallet.objects.filter(owner=request.user, is_active=True).values("id", "name", "kind")
+    )
+    source_kinds = {str(k): [str(x) for x in v] for k, v in SOURCE_WALLET_KINDS.items()}
     return render(
         request,
         "imports/import.html",
@@ -73,6 +79,8 @@ def import_view(request):
             "error": error,
             "result": result,
             "recent": recent,
+            "wallets_json": wallets,
+            "source_kinds_json": source_kinds,
             "nav_active": "import",
             "add_href": _add_href(),
         },

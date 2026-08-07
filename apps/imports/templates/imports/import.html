@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% load icons %}
-{% block title %}Importar CSV — Caudal{% endblock %}
+{% block title %}Importar — Caudal{% endblock %}
 
 {% block content %}
   <div class="monthbar">
     <a class="nav" href="{% url 'dashboard:home' %}" aria-label="Volver">{% icon "chevron-right" "icon flip" %}</a>
-    <div class="label">Importar<small>CSV / export</small></div>
+    <div class="label">Importar<small>resumen / export</small></div>
     <span class="nav" style="visibility:hidden"></span>
   </div>
 
@@ -13,36 +13,81 @@
     <div class="flash err">No se pudo importar: {{ error }}</div>
   {% endif %}
   {% if result %}
-    <div class="flash ok">
-      Importadas {{ result.rows_imported }} de {{ result.rows_total }} fila{{ result.rows_total|pluralize }}.
-      {% if result.rows_skipped %}Se omitieron {{ result.rows_skipped }} duplicada{{ result.rows_skipped|pluralize }}.{% endif %}
-    </div>
+    {% if result.rows_total == 0 %}
+      <div class="flash err">No se encontraron movimientos en el archivo. ¿La fuente y el archivo coinciden?</div>
+    {% elif result.rows_imported == 0 and result.rows_skipped %}
+      <div class="flash">
+        Ese archivo ya estaba importado: las {{ result.rows_skipped }} fila{{ result.rows_skipped|pluralize }} ya
+        existían en esta billetera, no se duplicó nada.
+      </div>
+    {% else %}
+      <div class="flash ok">
+        Importadas {{ result.rows_imported }} de {{ result.rows_total }} fila{{ result.rows_total|pluralize }}.
+        {% if result.rows_skipped %}Se omitieron {{ result.rows_skipped }} que ya existía{{ result.rows_skipped|pluralize:"n" }}.{% endif %}
+      </div>
+    {% endif %}
   {% endif %}
+
+  {{ wallets_json|json_script:"wallets-data" }}
+  {{ source_kinds_json|json_script:"source-kinds-data" }}
 
   <div class="card">
     <div class="section-title"><span>Subir archivo</span></div>
-    <form method="post" enctype="multipart/form-data">
+    <form method="post" enctype="multipart/form-data"
+          x-data="{
+            source: '',
+            wallets: JSON.parse(document.getElementById('wallets-data').textContent),
+            kinds: JSON.parse(document.getElementById('source-kinds-data').textContent),
+            get compatible() {
+              if (!this.source) return [];
+              const ks = this.kinds[this.source] || [];
+              return this.wallets.filter(w => ks.includes(w.kind));
+            }
+          }">
       {% csrf_token %}
+
       <label class="muted" style="font-size:.8rem">Fuente</label>
-      <div class="field">{{ form.source }}</div>
+      <div class="field">
+        <select name="source" x-model="source" required aria-label="Fuente">
+          <option value="">Elegí una fuente…</option>
+          {% for value, label in form.fields.source.choices %}
+            <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
       <label class="muted" style="font-size:.8rem">Billetera (DONDE)</label>
-      <div class="field">{{ form.wallet }}</div>
+      <div class="field">
+        <select name="wallet" required aria-label="Billetera" :disabled="!source">
+          <option value="" x-show="!source">Elegí primero la fuente</option>
+          <template x-for="w in compatible" :key="w.id">
+            <option :value="w.id" x-text="w.name"></option>
+          </template>
+        </select>
+      </div>
+      <p class="muted" x-show="source && compatible.length === 0" x-cloak
+         style="font-size:.76rem;margin:-.2rem 0 .4rem;color:var(--neg)">
+        No tenés una billetera compatible con esta fuente.
+        <a href="{% url 'wallets:wallets' %}">Creá una primero</a>.
+      </p>
+
       <label class="muted" style="font-size:.8rem">Archivo (.csv o .pdf de resumen)</label>
       <div class="field">{{ form.file }}</div>
+
       {% if form.errors %}
         <div class="flash err" style="margin-top:.6rem">
-          {% for field, errs in form.errors.items %}{{ field }}: {{ errs|join:", " }}<br>{% endfor %}
+          {% for field, errs in form.errors.items %}{{ errs|join:", " }}<br>{% endfor %}
         </div>
       {% endif %}
       <button class="btn btn-primary" type="submit" style="margin-top:.8rem">{% icon "download" "icon" %} Importar</button>
     </form>
+
     <p class="muted" style="font-size:.78rem;margin-bottom:0;margin-top:.9rem">
-      Elegí la fuente: <b>Banco ICBC</b> y <b>Tarjeta ICBC</b> tienen su formato propio;
-      el resto detecta las columnas solo. Para <b>Tarjeta ICBC</b> subí el <b>PDF del
-      resumen</b> (VISA): todos sus consumos van al mes en que se paga el resumen. Se
-      agrupan en el resumen de esa tarjeta (un gasto grande en el mes); entrás ahí para
-      categorizar y dividir cada uno. Los cargos en dólares se valúan con tu cotización.
-      Las filas ya importadas se omiten.
+      <b>Tarjeta ICBC</b>: subí el <b>PDF del resumen</b> (VISA o MASTER) a una billetera de
+      <b>tarjeta de crédito</b>; sus consumos van al mes en que se paga y se agrupan en el
+      resumen de esa tarjeta (entrás ahí para categorizar y dividir cada uno).
+      <b>Banco ICBC</b> va a una cuenta de <b>banco</b> y <b>Mercado Pago</b> a una
+      <b>billetera virtual</b>. Las filas ya importadas se omiten.
     </p>
   </div>
 

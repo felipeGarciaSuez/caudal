@@ -141,3 +141,28 @@ propia, en español y con el estilo de la app.
 
 **Notas:** es el cambio mas chico y rapido de esta lista; buen candidato para
 arrancar. Verificar la config actual de axes (`AXES_*` en settings).
+
+---
+
+## 5. UX del tipo de billetera (facil de interpretar)
+
+**Que:** al crear una billetera el usuario elige un `kind` (banco / billetera
+virtual / efectivo / tarjeta de credito) que no siempre es obvio: *"voy a
+registrar ICBC, ¿pongo tarjeta o banco?"*. El tipo es clave porque condiciona
+que importador funciona y como se agrupan los movimientos.
+
+**Por que:** un tipo mal elegido rompe el flujo **en silencio** — ej: un resumen
+de tarjeta importado a una cuenta "banco" caia como gastos sueltos en vez de
+agruparse. Salio de un bug real. El goal es que elegir el tipo sea **solido y
+facil de interpretar**, o este bien explicado.
+
+**Alcance / ideas:**
+- Explicar cada tipo con un ejemplo al crear/editar la billetera (banco = caja de
+  ahorro/cuenta; billetera virtual = MP/Ualá/Personal Pay; tarjeta de credito =
+  resumen con cierre/vencimiento; efectivo).
+- Aclarar que un mismo emisor (ICBC) puede tener **dos** billeteras distintas: la
+  cuenta (banco) y la tarjeta (credito).
+- Que el tipo se entienda desde la UI (iconos, hints) sin adivinar.
+- Ya mitigado en parte: el importador ahora **restringe las billeteras
+  compatibles por fuente** y valida en el backend. La raiz sigue siendo que el
+  tipo se entienda al crear la billetera.
