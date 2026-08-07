@@ -44,6 +44,12 @@ VPS con Docker.
 - Isotipo desincronizado entre páginas (marca centralizada en un partial único).
 - Bit de ejecutable del `docker-entrypoint.sh`.
 - django-axes leyendo la IP real detrás del proxy en producción.
+- Un resumen de tarjeta importado a una billetera que **no** era de crédito caía
+  como gastos sueltos en vez de agruparse en el resumen de la tarjeta. El
+  importador ahora **valida que la billetera sea compatible con la fuente** (y
+  filtra el select en vivo), y **solo ofrece las fuentes con parser probado**
+  (Tarjeta ICBC, Banco ICBC, Mercado Pago). Además, un mensaje claro cuando el
+  archivo ya estaba importado, en vez de un ambiguo "0 filas".
 
 ### Migraciones
 - `budgets`: `IncomeSource`.
