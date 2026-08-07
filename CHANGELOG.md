@@ -4,6 +4,32 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado según [SemVer](https://semver.org/lang/es/) — criterio detallado en
 [`CLAUDE.md`](./CLAUDE.md#10-versionado-y-ramas).
 
+## [1.4.0] — 2026-08-07
+
+Rediseño de categorías: el tipo de un gasto (fijo / grande / hormiga) lo define
+el gasto, no el rubro. Y ahora se pueden borrar los gastos grandes del checklist.
+
+### Cambiado
+- **Las categorías dejan de tener tipo (fijo/variable/hormiga) y grupos.** Una
+  categoría es solo una etiqueta (nombre + ícono). Qué es fijo/grande/hormiga lo
+  decide cada gasto, no el rubro:
+  - **Checklist de fijos** = los gastos **recurrentes** que declarás (Gastos Fijos).
+  - **Grande vs hormiga** = por **monto** (umbral) + la marca "es un gasto grande".
+  - Así, un gasto chico de Salud cae en **hormiga** en vez de "grande" solo por
+    ser de esa categoría.
+- Cualquier categoría puede respaldar un gasto fijo recurrente (antes solo las fijas).
+
+### Agregado
+- **Borrar gastos grandes desde el checklist** (antes solo se podían borrar los
+  de un único movimiento).
+
+### Interno
+- Normalización de fin de línea del repo a LF (`.gitattributes`).
+
+### Migraciones
+- `transactions`: elimina `Category.kind` y `Category.parent` (borra esas
+  columnas; los rubros se conservan, pierden su tipo/grupo).
+
 ## [1.3.0] — 2026-08-06
 
 Login con Google, ingresos con varias fuentes (sueldo + extras), importadores de
