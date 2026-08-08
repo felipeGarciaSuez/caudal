@@ -4,6 +4,39 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado según [SemVer](https://semver.org/lang/es/) — criterio detallado en
 [`CLAUDE.md`](./CLAUDE.md#10-versionado-y-ramas).
 
+## [1.4.1] — 2026-08-08
+
+Tanda de fixes y pulido de UX (mayormente sobre lo de 1.4.0). Incluye una
+migración destructiva (elimina el "cobrado" de los ingresos).
+
+### Arreglado
+- **Cotización del dólar** (Ahorros): el input "Dólar hoy" no guardaba porque los
+  atributos HTMX estaban en el `<form>` y por herencia no disparaban; van en el
+  input. Ahora recalcula el valor en pesos y persiste al salir/volver.
+- **Alta de gasto**: el "+" del Mes ahora despliega el formulario y baja al fondo
+  en un solo toque (antes había que tocarlo dos veces).
+- **Tilde del checklist** centrado (se veía corrido en el teléfono).
+- **Flicker del tabbar** en iOS (elemento fijo con `backdrop-filter`): se fuerza
+  su propia capa de GPU para que no parpadee al cambiar de página.
+
+### Cambiado
+- **Ingresos**: se elimina la lógica de "cobrado"; la pantalla queda solo con los
+  montos esperados. El bloque de ingresos ahora muestra un indicador de que abre
+  otra pantalla.
+- **Alta de gasto**: tocar una categoría solo la **selecciona**; se agrega un botón
+  "Confirmar gasto" (antes se cargaba solo al tocar el chip).
+- **Tabbar**: el "+" aparece solo en la vista de Mes; en el resto el botón central
+  es una **casita** que lleva al Mes.
+- **Ajustes**: el input de umbral hormiga es más grande y legible en el celu.
+
+### Eliminado
+- Campo `received_amount` de las fuentes de ingreso (migración destructiva
+  `budgets/0003`).
+
+### Backlog
+- Se anotó: cotización del dólar automática (fetch diario vía API con fallback
+  manual) y un tour de onboarding.
+
 ## [1.4.0] — 2026-08-07
 
 Rediseño de categorías: el tipo de un gasto (fijo / grande / hormiga) lo define
