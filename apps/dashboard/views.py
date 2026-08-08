@@ -383,7 +383,20 @@ def month_view(request, period):
     # gasto" card lives here). Elsewhere it becomes a home shortcut instead, so
     # it never reads as "add whatever this screen is about" (a fixed expense...).
     context["center_is_add"] = True
+    # First-run: auto-open the welcome tour once, then never again (the "?" in the
+    # topbar re-launches it on demand).
+    context["show_tour"] = not request.user.has_seen_tour
     return render(request, "dashboard/month.html", context)
+
+
+@login_required
+@require_POST
+def tour_seen(request):
+    """Mark the welcome tour as seen so it stops auto-opening. Fire-and-forget."""
+    if not request.user.has_seen_tour:
+        request.user.has_seen_tour = True
+        request.user.save(update_fields=["has_seen_tour"])
+    return HttpResponse(status=204)
 
 
 @login_required

@@ -8,7 +8,7 @@
 {% endif %}
 
 {# ---------- HERO: RESTO SUELDO ---------- #}
-<div class="hero">
+<div class="hero" data-tour="resto">
   <div class="k">Resto sueldo</div>
   <div class="v {% if m.over_budget %}neg{% else %}pos{% endif %}">
     <span class="cur">$</span><span class="tnum">{{ m.remaining|money }}</span>
@@ -18,13 +18,13 @@
   </div>
   <div class="legend">
     {% if m.income_source_count %}
-      <a class="inline-income link-more" href="{% url 'dashboard:month_income' period %}"
+      <a class="inline-income link-more" data-tour="ingresos" href="{% url 'dashboard:month_income' period %}"
          aria-label="Ver y editar ingresos">
         Ingresos $ {{ m.income|money:0 }}
         <span class="more-chev">{% icon "chevron-right" "icon" %}</span>
       </a>
     {% else %}
-      <span class="inline-income">Sueldo $
+      <span class="inline-income" data-tour="ingresos">Sueldo $
         <input type="number" name="expected_income" inputmode="decimal" step="0.01"
                value="{{ budget.expected_income|stringformat:'.2f' }}"
                hx-post="{% url 'dashboard:set_income' period %}" hx-target="#month-body"
@@ -47,7 +47,7 @@
 </div>
 
 {# ---------- GASTOS GRANDES (checklist + agregados grandes) ---------- #}
-<div class="card">
+<div class="card" data-tour="grandes">
   <div class="section-title">
     <span>Gastos grandes</span>
     <span style="display:flex;align-items:center;gap:.5rem">
@@ -172,7 +172,7 @@
 </div>
 
 {# ---------- PANEL HORMIGA (a dónde se va la plata chica) ---------- #}
-<div class="card">
+<div class="card" data-tour="hormiga">
   <div class="section-title">
     <span>Gastos hormiga</span>
     {% if m.ant_alert %}

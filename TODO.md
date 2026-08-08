@@ -203,7 +203,15 @@ esfuerzo, respetando siempre el fallback manual (regla de oro del CLAUDE.md).
 
 ---
 
-## 7. Tour de onboarding (mapa para empezar a usar la app)
+## 7. Tour de onboarding (mapa para empezar a usar la app) [HECHO]
+
+> Implementado: **tour spotlight** (resalta el elemento real en su lugar con un
+> tooltip corto), sin deps, motor propio en `static/js/tour.js`. Cada pantalla
+> tiene su "?" y resalta solo SUS elementos (no salta entre vistas): el del Mes
+> muestra todo lo del Mes (8 pasos), el de Ajustes solo sus opciones (6 pasos).
+> Auto-abre una vez en el Mes para usuarios nuevos (`accounts.User.has_seen_tour`
+> + endpoint `dashboard:tour_seen`), re-lanzable desde el "?" de cada topbar.
+> Targets marcados con `data-tour="..."`. Con tests.
 
 **Que:** un **recorrido guiado** para el usuario nuevo, disparado desde un
 **"?" arriba de todo** (siempre disponible, re-lanzable) y **auto-mostrado la

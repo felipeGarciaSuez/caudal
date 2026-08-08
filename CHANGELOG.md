@@ -4,6 +4,25 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 Versionado según [SemVer](https://semver.org/lang/es/) — criterio detallado en
 [`CLAUDE.md`](./CLAUDE.md#10-versionado-y-ramas).
 
+## [1.5.0] — 2026-08-08
+
+Onboarding para el lanzamiento público: un tour guiado que le muestra al usuario
+nuevo cómo usar la app, en su lugar.
+
+### Agregado
+- **Tour de bienvenida (spotlight).** Resalta cada parte de la app en su lugar
+  con una explicación corta (nada de cartelones de texto). Cada pantalla tiene
+  su propio "?": el del **Mes** recorre resto sueldo → ingresos → gastos grandes
+  → hormiga → el "+" → Ahorro → Importar → Ajustes; el de **Ajustes** recorre
+  billeteras → categorías → reglas → fijos → umbral → exportar. Auto-abre una
+  sola vez para usuarios nuevos y se re-lanza desde el "?".
+- El **logo de Caudal** ahora lleva al inicio al tocarlo.
+
+### Notas
+- Motor de tour propio sin dependencias (`static/js/tour.js`), targets marcados
+  con `data-tour`. Nuevo flag `accounts.User.has_seen_tour` (migración `0005`) +
+  endpoint `dashboard:tour_seen`.
+
 ## [1.4.1] — 2026-08-08
 
 Tanda de fixes y pulido de UX (mayormente sobre lo de 1.4.0). Incluye una

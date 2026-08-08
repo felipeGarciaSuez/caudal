@@ -10,6 +10,7 @@ urlpatterns = [
     path("export/movimientos.csv", views.export_transactions_csv, name="export_csv"),
     path("m/<str:period>/", views.month_view, name="month"),
     path("add/", views.add_transaction, name="add_transaction"),
+    path("tour-seen/", views.tour_seen, name="tour_seen"),
     path("m/<str:period>/income/", views.set_income, name="set_income"),
     path("m/<str:period>/income/detalle/", views.month_income, name="month_income"),
     path("m/<str:period>/income/add/", views.income_add, name="income_add"),
