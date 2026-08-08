@@ -5,10 +5,14 @@
 {% block content %}
   <header class="topbar">
     {% include "partials/brandmark.html" %}
-    <form method="post" action="{% url 'logout' %}">
-      {% csrf_token %}
-      <button class="icon-btn" type="submit" aria-label="Cerrar sesión">{% icon "log-out" "icon" %}</button>
-    </form>
+    <div class="topbar-actions">
+      <button class="icon-btn" type="button" aria-label="Cómo usar Caudal"
+              onclick="startMonthTour()">{% icon "help-circle" "icon" %}</button>
+      <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button class="icon-btn" type="submit" aria-label="Cerrar sesión">{% icon "log-out" "icon" %}</button>
+      </form>
+    </div>
   </header>
 
   <div class="monthbar">
@@ -23,4 +27,27 @@
   <div id="month-body">
     {% include "dashboard/_month_body.html" %}
   </div>
+
+  <script>
+    function startMonthTour() {
+      window.CaudalTour.start([
+        { sel: '[data-tour="resto"]',    text: 'Este es tu <b>resto sueldo</b>: lo que te queda a fin de mes (ingresos menos gastos).' },
+        { sel: '[data-tour="ingresos"]', text: 'Carga tu <b>sueldo</b> y otros ingresos del mes aca.' },
+        { sel: '[data-tour="grandes"]',  text: 'Tus <b>gastos grandes y fijos</b>. Tilda lo que ya pagaste.' },
+        { sel: '[data-tour="hormiga"]',  text: 'Los <b>gastos hormiga</b>: los chiquitos que suman sin que te des cuenta.' },
+        { sel: '[data-tour="add"]',      text: 'Con el <b>+</b> cargas un gasto en segundos: monto, categoria y confirmas.' },
+        { sel: '[data-tour="ahorro"]',   text: 'En <b>Ahorro</b> registras tus dolares y ves tu patrimonio en pesos.' },
+        { sel: '[data-tour="importar"]', text: '<b>Importa</b> el resumen de tu banco o tarjeta y las hormigas entran solas.' },
+        { sel: '[data-tour="ajustes"]',  text: 'En <b>Ajustes</b> configuras billeteras, categorias y el umbral hormiga.' }
+      ], { onDone: markTourSeen });
+    }
+    function markTourSeen() {
+      fetch('{% url 'dashboard:tour_seen' %}', {
+        method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' }, keepalive: true
+      });
+    }
+    {% if show_tour %}
+    document.addEventListener('DOMContentLoaded', function () { startMonthTour(); });
+    {% endif %}
+  </script>
 {% endblock %}

@@ -1029,3 +1029,28 @@ def test_custom_404_page(client):
     body = resp.content.decode()
     assert "Caudal" in body
     assert "Volver al inicio" in body
+
+
+def test_welcome_tour_autoopens_once_then_marked_seen(client_logged, user):
+    period = timezone.localdate().strftime("%Y-%m")
+    # New user (has_seen_tour defaults False): the tour auto-opens on the month.
+    assert user.has_seen_tour is False
+    body = client_logged.get(reverse("dashboard:month", args=[period])).content.decode()
+    assert "Cómo usar Caudal" in body  # the "?" help button
+    assert "startMonthTour();" in body  # auto-run line is emitted on first visit
+
+    # Dismissing it marks the flag so it never auto-opens again.
+    resp = client_logged.post(reverse("dashboard:tour_seen"))
+    assert resp.status_code == 204
+    user.refresh_from_db()
+    assert user.has_seen_tour is True
+
+    body2 = client_logged.get(reverse("dashboard:month", args=[period])).content.decode()
+    assert "startMonthTour();" not in body2  # no longer auto-runs
+    assert "Cómo usar Caudal" in body2  # but the "?" is still there to re-launch
+
+
+def test_tour_seen_requires_login(client):
+    resp = client.post(reverse("dashboard:tour_seen"))
+    assert resp.status_code == 302
+    assert "/accounts/login/" in resp["Location"]

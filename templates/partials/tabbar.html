@@ -3,12 +3,12 @@
   <a href="{% url 'dashboard:home' %}" class="{% if nav_active == 'month' %}active{% endif %}">
     {% icon "calendar-days" "icon" %}<span>Mes</span>
   </a>
-  <a href="{% url 'savings:home' %}" class="{% if nav_active == 'savings' %}active{% endif %}">
+  <a href="{% url 'savings:home' %}" data-tour="ahorro" class="{% if nav_active == 'savings' %}active{% endif %}">
     {% icon "piggy-bank" "icon" %}<span>Ahorro</span>
   </a>
   {% if center_is_add %}
     {# En el Mes: el boton central agrega un gasto. #}
-    <a href="#add-card" class="add" aria-label="Agregar gasto"
+    <a href="#add-card" class="add" data-tour="add" aria-label="Agregar gasto"
        onclick="event.preventDefault(); window.dispatchEvent(new CustomEvent('open-add'))">
       {% icon "plus" "icon" %}
     </a>
@@ -18,10 +18,10 @@
       {% icon "home" "icon" %}
     </a>
   {% endif %}
-  <a href="{% url 'imports:import' %}" class="{% if nav_active == 'import' %}active{% endif %}">
+  <a href="{% url 'imports:import' %}" data-tour="importar" class="{% if nav_active == 'import' %}active{% endif %}">
     {% icon "download" "icon" %}<span>Importar</span>
   </a>
-  <a href="{% url 'dashboard:settings' %}" class="{% if nav_active == 'settings' %}active{% endif %}">
+  <a href="{% url 'dashboard:settings' %}" data-tour="ajustes" class="{% if nav_active == 'settings' %}active{% endif %}">
     {% icon "settings" "icon" %}<span>Ajustes</span>
   </a>
 </nav>

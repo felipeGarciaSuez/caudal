@@ -32,6 +32,11 @@ class User(AbstractUser):
         help_text="Clasificar por monto: un gasto que llega al umbral cuenta como grande solo. "
         "Si se apaga, un gasto es grande únicamente cuando se marca a mano.",
     )
+    has_seen_tour = models.BooleanField(
+        "vio el tour de bienvenida",
+        default=False,
+        help_text="Se marca cuando el usuario completa o salta el recorrido inicial.",
+    )
 
     class Meta:
         verbose_name = "usuario"
