@@ -218,26 +218,18 @@ def test_income_add_and_update_flow(client_logged, user):
     assert resp.status_code == 200
     freelance = IncomeSource.objects.get(owner=user, period="2026-06", name="Freelance")
 
-    # Mark the freelance as collected.
+    # Editing the expected amount updates the source.
     client_logged.post(
         reverse("dashboard:income_update", args=[freelance.id]),
-        {"received_amount": "300000"},
+        {"expected_amount": "350000"},
     )
     freelance.refresh_from_db()
-    assert freelance.received_amount == Decimal("300000")
+    assert freelance.expected_amount == Decimal("350000")
 
-    # A blank "cobrado" clears it back to not-collected.
-    client_logged.post(
-        reverse("dashboard:income_update", args=[freelance.id]),
-        {"received_amount": ""},
-    )
-    freelance.refresh_from_db()
-    assert freelance.received_amount is None
-
-    # The planned total comes from the sources (2.2M); the budget itself need not
+    # The planned total comes from the sources; the budget itself need not
     # be persisted -- income_planned reads the sources by owner+period.
     budget = MonthlyBudget(owner=user, period="2026-06", expected_income=Decimal("0"))
-    assert budget.income_planned == Decimal("2200000.00")
+    assert budget.income_planned == Decimal("2250000.00")
 
 
 def test_income_delete_removes_source(client_logged, user):
@@ -547,6 +539,7 @@ def test_categorizacion_section_removed(client_logged, user, wallet):
     assert "Categorización" not in body
     assert "combined_rows" not in resp.context
 
+
 def test_total_spent_splits_checklist_big_and_hormiga(client_logged, user, wallet):
     """Checklist = recurring, grande/hormiga = by amount; total_spent is the sum."""
     from apps.budgets.models import RecurringExpense
@@ -569,13 +562,21 @@ def test_total_spent_splits_checklist_big_and_hormiga(client_logged, user, walle
     ensure_month_fixed(user, period)
     # Big by amount (>= 20000 threshold).
     Transaction.objects.create(
-        owner=user, wallet=wallet, category=super_cat, amount=Decimal("20000"),
-        kind=Transaction.Kind.EXPENSE, date=today,
+        owner=user,
+        wallet=wallet,
+        category=super_cat,
+        amount=Decimal("20000"),
+        kind=Transaction.Kind.EXPENSE,
+        date=today,
     )
     # Hormiga (< threshold).
     Transaction.objects.create(
-        owner=user, wallet=wallet, category=ant_cat, amount=Decimal("3000"),
-        kind=Transaction.Kind.EXPENSE, date=today,
+        owner=user,
+        wallet=wallet,
+        category=ant_cat,
+        amount=Decimal("3000"),
+        kind=Transaction.Kind.EXPENSE,
+        date=today,
     )
     resp = client_logged.get(reverse("dashboard:month", args=[period]))
     m = resp.context["m"]

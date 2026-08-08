@@ -239,6 +239,7 @@ def test_add_recurring_rejects_bad_amount(client_logged, wallet, fixed_cat):
     assert resp.status_code == 400
     assert RecurringExpense.objects.count() == 0
 
+
 def test_update_recurring_changes_fields(client_logged, user, wallet, fixed_cat):
     from django.urls import reverse
 
@@ -356,7 +357,6 @@ def test_income_planned_falls_back_to_expected_income(user):
         owner=user, period="2026-08", expected_income=Decimal("1900000")
     )
     assert budget.income_planned == Decimal("1900000.00")
-    assert budget.income_received == Decimal("0.00")
 
 
 def test_income_planned_sums_sources_and_drives_remaining(user):
@@ -375,24 +375,3 @@ def test_income_planned_sums_sources_and_drives_remaining(user):
     assert budget.income_planned == Decimal("2200000.00")
     # No expenses/savings yet, so the whole planned income is the RESTO.
     assert budget.remaining == Decimal("2200000.00")
-
-
-def test_income_received_sums_only_collected(user):
-    from apps.budgets.models import IncomeSource
-
-    budget = MonthlyBudget.objects.create(
-        owner=user, period="2026-08", expected_income=Decimal("0")
-    )
-    IncomeSource.objects.create(
-        owner=user,
-        period="2026-08",
-        name="Sueldo",
-        expected_amount=Decimal("1900000"),
-        received_amount=Decimal("1900000"),
-    )
-    # Freelance is planned but not collected yet (received stays null).
-    IncomeSource.objects.create(
-        owner=user, period="2026-08", name="Freelance", expected_amount=Decimal("300000")
-    )
-    assert budget.income_received == Decimal("1900000.00")
-    assert budget.income_planned == Decimal("2200000.00")

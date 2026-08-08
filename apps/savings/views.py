@@ -2,7 +2,6 @@ from datetime import date
 
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
-from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -36,9 +35,6 @@ def _savings_context(user) -> dict:
         "locations": services.known_locations(user),
         "today": timezone.localdate(),
         "nav_active": "savings",
-        # The '+' FAB adds a gasto, which lives on the month page.
-        "add_href": reverse("dashboard:month", args=[timezone.localdate().strftime("%Y-%m")])
-        + "#add-card",
     }
 
 

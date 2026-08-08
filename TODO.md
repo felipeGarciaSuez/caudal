@@ -162,3 +162,88 @@ facil de interpretar**, o este bien explicado.
 - Ya mitigado en parte: el importador ahora **restringe las billeteras
   compatibles por fuente** y valida en el backend. La raiz sigue siendo que el
   tipo se entienda al crear la billetera.
+
+---
+
+## 6. Cotizacion del dolar automatica (fetch diario via API)
+
+**Que:** que todos los dias se traiga la cotizacion del dolar desde una API
+publica y se actualice sola para cada usuario que tenga activado el modo
+**"cotizacion automatica"** en su configuracion. Hoy la cotizacion del dolar en
+Ahorros es 100% manual (el usuario escribe "el dolar esta a X").
+
+**Por que:** el valor en pesos del patrimonio queda desactualizado si el usuario
+no entra a cargar el dolar a mano. Un fetch diario lo mantiene al dia sin
+esfuerzo, respetando siempre el fallback manual (regla de oro del CLAUDE.md).
+
+**Alcance / piezas:**
+- **Fuente de datos:** evaluar API de **dolarapi.com** (dolar blue/oficial/MEP/
+  cripto, gratis y sin key) o el endpoint de cotizaciones de **AFIP/BCRA**.
+  Elegir que "dolar" se usa por defecto (blue o cripto suelen ser los relevantes
+  para ahorro). Nunca asumir que la API anda: si falla, se queda la ultima
+  cotizacion manual/automatica cargada.
+- **Config por usuario:** flag `auto_dollar_price` (bool) en `accounts.User`
+  (o en un modelo de settings), editable desde Ajustes. Off por defecto para no
+  pisar la cotizacion manual de quien la quiere fija.
+- **Job diario:** un management command (`fetch_dollar_price`) corrido por cron/
+  scheduler del VPS una vez al dia, que pegue a la API y haga un `PriceSnapshot`
+  (`source="api"`) para los assets USD de los usuarios con el modo activado.
+  Reusar `savings.services.set_dollar_price` (hoy es global; ver si conviene
+  volverlo por-usuario cuando haya multi-user real).
+- **UI:** en Ahorros, mostrar si la cotizacion vigente es automatica (API) o
+  manual, y la fecha. Permitir siempre sobrescribir a mano (el manual gana hasta
+  el proximo fetch, o se respeta segun se decida).
+
+**Notas / riesgos:**
+- Hoy `PriceSnapshot` y `set_dollar_price` son **globales** (no por usuario). El
+  fetch diario encaja bien con eso mientras sea single-user; revisar al abrir
+  multi-user.
+- Es la Fase 5 (integracion automatica) del CLAUDE.md aplicada al dolar: tratar
+  como spike, con fallback manual **siempre**.
+
+---
+
+## 7. Tour de onboarding (mapa para empezar a usar la app)
+
+**Que:** un **recorrido guiado** para el usuario nuevo, disparado desde un
+**"?" arriba de todo** (siempre disponible, re-lanzable) y **auto-mostrado la
+primera vez** (cuenta nueva / mes vacio, descartable). Va resaltando cada parte
+de la app con un tooltip que explica que hacer, en orden de dependencias:
+
+0. **Resto sueldo + ingresos** (el corazon): que es el numero grande y como
+   cargar el sueldo / los ingresos del mes.
+1. **Billeteras**: agregar las billeteras reales (banco, MP, Uala, efectivo,
+   tarjeta) — es lo primero, todo lo demas cuelga de aca (el "DONDE").
+2. **Gastos fijos**: cargar los fijos recurrentes (alquiler, servicios, gym…)
+   para que aparezcan como checklist cada mes.
+3. **Cargar un gasto suelto**: el "+" del Mes → monto, categoria, confirmar.
+4. **Grande vs hormiga**: cuando un gasto cuenta como grande y cuando como
+   hormiga, el **umbral** y el toggle de "gastos grandes automaticos" en Ajustes,
+   y de paso para que sirven las **categorias**.
+5. **Ahorro**: registrar compras de dolares y ver el patrimonio.
+6. **Importar extractos**: subir el resumen de tarjeta / banco / MP para que las
+   hormigas entren solas (sin cargarlas a mano).
+
+**Por que:** hoy un usuario nuevo cae en un Mes vacio sin saber que **primero**
+hay que cargar billeteras y fijos. Sin ese mapa, el numero de "resto sueldo" no
+significa nada y la app parece vacia. El tour da el orden correcto para arrancar.
+
+**Alcance / piezas:**
+- **Disparadores:** icono "?" en la topbar (siempre), + auto-run la primera vez.
+- **Persistencia:** guardar "tour completado" por usuario (bool en `accounts.User`)
+  para no repetirlo en cada login; el "?" lo vuelve a lanzar cuando el usuario
+  quiera.
+- **Contenido por pasos:** cada paso apunta a un elemento real de la UI (la
+  pestaña de Billeteras, el checklist de fijos, el "+", el umbral en Ajustes,
+  etc.) con su tooltip. Ojo: algunos pasos viven en **otras pantallas** (Ajustes,
+  Importar) — el tour tiene que poder navegar entre vistas o explicarlas sin
+  exigir estar parado en cada una.
+- **Como construirlo (sin CDN, self-host):** o **driver.js** vendorizado local
+  (~5KB, hace justo esto: overlay + highlight + tooltip con pasos) o un mini-tour
+  casero con Alpine (cero dependencias). Preferencia: driver.js por lo barato,
+  respetando el "no meter deps pesadas" del CLAUDE.md. Todo el asset servido local
+  (nada de `unpkg`), por la CSP del deploy.
+
+**Notas:** mantenerlo corto (6-7 pasos, saltable en cualquier momento). No es un
+wizard obligatorio: es un mapa opcional. A futuro, un "empty state" en cada
+seccion podria reforzar el mismo mensaje sin depender del tour.

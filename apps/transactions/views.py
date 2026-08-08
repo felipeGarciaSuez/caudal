@@ -1,8 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.db.models import ProtectedError
 from django.shortcuts import get_object_or_404, render
-from django.urls import reverse
-from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from apps.dashboard.templatetags.icons import ICONS
@@ -13,16 +11,11 @@ from .models import Category
 ICON_CHOICES = sorted(name for name in ICONS if name != "tag")
 
 
-def _current_period() -> str:
-    return timezone.localdate().strftime("%Y-%m")
-
-
 def _categories_context(user, **extra) -> dict:
     ctx = {
         "categories": Category.objects.filter(owner=user).order_by("name"),
         "icon_choices": ICON_CHOICES,
         "nav_active": "settings",
-        "add_href": reverse("dashboard:month", args=[_current_period()]) + "#add-card",
     }
     ctx.update(extra)
     return ctx

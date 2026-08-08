@@ -27,12 +27,13 @@
   {% else %}
     <div class="legend"><span class="muted">Cargá la cotización para ver el valor en pesos.</span></div>
   {% endif %}
-  <form class="quote-edit" hx-post="{% url 'savings:set_price' %}" hx-target="#savings-body" hx-swap="innerHTML">
-    <label>{% icon "dollar-sign" "icon" %} Dólar hoy $</label>
-    <input type="text" name="price" inputmode="decimal" placeholder="1350"
+  <div class="quote-edit">
+    <label for="dollar-price">{% icon "dollar-sign" "icon" %} Dólar hoy $</label>
+    <input type="text" name="price" id="dollar-price" inputmode="decimal" placeholder="1500"
            value="{% if dollar_price %}{{ dollar_price|money:0 }}{% endif %}"
+           hx-post="{% url 'savings:set_price' %}" hx-target="#savings-body" hx-swap="innerHTML"
            hx-trigger="change" aria-label="Cotización del dólar">
-  </form>
+  </div>
 </div>
 
 {# ---------- POR DÓNDE ESTÁN ---------- #}

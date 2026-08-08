@@ -31,7 +31,7 @@ from apps.wallets.models import CardStatement, Wallet
 User = get_user_model()
 
 SUELDO = Decimal("2500000")
-DOLLAR_PRICE = Decimal("1450")
+DOLLAR_PRICE = Decimal("1500")
 
 # (recurring name, category, wallet, amount, day_of_month, already_paid)
 # Demo needs a richer, Felipe-like set of wallets than the generic base seed

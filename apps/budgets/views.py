@@ -2,7 +2,6 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
-from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -40,8 +39,6 @@ def _fixed_context(user, **extra) -> dict:
         "categories": Category.objects.filter(owner=user).order_by("name"),
         "wallets": Wallet.objects.filter(owner=user, is_active=True),
         "nav_active": "settings",
-        # The '+' FAB adds a loose expense on the current month page.
-        "add_href": reverse("dashboard:month", args=[_current_period()]) + "#add-card",
     }
     ctx.update(extra)
     return ctx
@@ -71,9 +68,7 @@ def _clean_common(request, user):
     except (ValueError, TypeError):
         return None, "El día del mes no es válido."
     day = min(max(day, 1), 31)
-    category = Category.objects.filter(
-        owner=user, pk=request.POST.get("category")
-    ).first()
+    category = Category.objects.filter(owner=user, pk=request.POST.get("category")).first()
     if category is None:
         return None, "Elegí una categoría."
     wallet = Wallet.objects.filter(

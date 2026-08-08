@@ -56,9 +56,9 @@
       Clasificar por monto: un gasto que llega al umbral cuenta como grande solo.
       Si lo apagás, un gasto es grande únicamente cuando lo marcás a mano al cargarlo.
     </span>
-    <div class="field" x-show="auto" x-cloak>
+    <div class="field" x-show="auto" x-cloak style="flex-direction:column;align-items:stretch;gap:.35rem">
       <label for="ant_threshold">Umbral hormiga ($)</label>
-      <input class="input" id="ant_threshold" type="number" name="ant_threshold"
+      <input class="input lg" id="ant_threshold" type="number" name="ant_threshold"
              inputmode="decimal" step="0.01" min="0" value="{{ ant_threshold|stringformat:'.2f' }}">
       {% if error %}<span class="hint" style="color:var(--danger)">{{ error }}</span>{% endif %}
       <span class="hint muted">
