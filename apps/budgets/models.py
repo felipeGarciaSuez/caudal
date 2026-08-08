@@ -119,12 +119,6 @@ class MonthlyBudget(models.Model):
         return Decimal(total).quantize(Decimal("0.01"))
 
     @property
-    def income_received(self) -> Decimal:
-        """Total actually collected across the month's income sources."""
-        total = self.income_sources.aggregate(t=Sum("received_amount"))["t"] or Decimal("0")
-        return Decimal(total).quantize(Decimal("0.01"))
-
-    @property
     def remaining(self) -> Decimal:
         """RESTO SUELDO = ingreso esperado del mes − gastos − ahorro del mes.
 
@@ -136,11 +130,10 @@ class MonthlyBudget(models.Model):
 
 
 class IncomeSource(models.Model):
-    """One income line for a month: an expected amount and what was collected.
+    """One expected income line for a month (salary, freelance, rent...).
 
-    Lets a month document several sources (salary, freelance, rent...) instead of
-    a single number. ``received_amount`` stays null until the money actually comes
-    in, so the month can compare planned vs received per source.
+    Lets a month document several sources instead of a single number. Their sum
+    is the expected income that drives the RESTO SUELDO.
     """
 
     owner = models.ForeignKey(
@@ -151,9 +144,6 @@ class IncomeSource(models.Model):
     period = models.CharField("período", max_length=7)  # YYYY-MM
     name = models.CharField("nombre", max_length=120)
     expected_amount = models.DecimalField("monto esperado", max_digits=14, decimal_places=2)
-    received_amount = models.DecimalField(
-        "monto cobrado", max_digits=14, decimal_places=2, null=True, blank=True
-    )
 
     class Meta:
         verbose_name = "fuente de ingreso"
@@ -163,7 +153,3 @@ class IncomeSource(models.Model):
 
     def __str__(self):
         return f"{self.period} — {self.name}: {self.expected_amount}"
-
-    @property
-    def is_received(self) -> bool:
-        return self.received_amount is not None

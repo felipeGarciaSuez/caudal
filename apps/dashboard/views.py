@@ -237,7 +237,6 @@ def _month_context(user, period: str) -> dict:
     # rescate neto (venta de dólares), que no tiene Transaction propia.
     saved = saved_ars(user, period)
     income = budget.income_planned or zero
-    income_received = budget.income_received
     income_sources = list(budget.income_sources)
     used = total_spent + saved
     remaining = income - used
@@ -250,7 +249,6 @@ def _month_context(user, period: str) -> dict:
 
     metrics = {
         "income": income,
-        "income_received": income_received,
         "income_source_count": len(income_sources),
         "total_spent": total_spent,
         "saved": saved,
@@ -381,6 +379,10 @@ def month_view(request, period):
         ensure_month_fixed(request.user, period)
     context = _month_context(request.user, period)
     context["nav_active"] = "month"
+    # On the month, the central tabbar button adds a gasto (the "Agregar un
+    # gasto" card lives here). Elsewhere it becomes a home shortcut instead, so
+    # it never reads as "add whatever this screen is about" (a fixed expense...).
+    context["center_is_add"] = True
     return render(request, "dashboard/month.html", context)
 
 
@@ -525,7 +527,7 @@ def set_income(request, period):
     return render(request, "dashboard/_month_body.html", context)
 
 
-# --- Ingresos del mes (varias fuentes: planeado vs cobrado) ------------------
+# --- Ingresos del mes (varias fuentes esperadas: sueldo + extras) ------------
 
 
 def _parse_amount(raw):
@@ -542,15 +544,12 @@ def _parse_amount(raw):
 
 def _income_context(user, period: str) -> dict:
     sources = list(IncomeSource.objects.filter(owner=user, period=period))
-    zero = Decimal("0.00")
-    planned = sum((s.expected_amount for s in sources), zero)
-    received = sum((s.received_amount or zero for s in sources), zero)
+    planned = sum((s.expected_amount for s in sources), Decimal("0.00"))
     return {
         "period": period,
         "period_label": _period_label(period),
         "sources": sources,
         "income_planned": planned,
-        "income_received": received,
     }
 
 
@@ -591,9 +590,6 @@ def income_update(request, source_id):
         expected = _parse_amount(request.POST.get("expected_amount"))
         if expected is not None:
             source.expected_amount = expected
-    if "received_amount" in request.POST:
-        # A blank "cobrado" clears it back to "not collected yet" (null).
-        source.received_amount = _parse_amount(request.POST.get("received_amount"))
     source.save()
     return render(
         request, "dashboard/_income_body.html", _income_context(request.user, source.period)

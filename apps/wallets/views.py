@@ -1,15 +1,9 @@
 from django.contrib.auth.decorators import login_required
 from django.db.models import ProtectedError
 from django.shortcuts import get_object_or_404, render
-from django.urls import reverse
-from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .models import Wallet
-
-
-def _current_period() -> str:
-    return timezone.localdate().strftime("%Y-%m")
 
 
 def _wallets_context(user, **extra) -> dict:
@@ -20,7 +14,6 @@ def _wallets_context(user, **extra) -> dict:
         "kinds": Wallet.Kind.choices,
         "credit_kind": Wallet.Kind.CREDIT_CARD,
         "nav_active": "settings",
-        "add_href": reverse("dashboard:month", args=[_current_period()]) + "#add-card",
     }
     ctx.update(extra)
     return ctx

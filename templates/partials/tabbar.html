@@ -6,10 +6,18 @@
   <a href="{% url 'savings:home' %}" class="{% if nav_active == 'savings' %}active{% endif %}">
     {% icon "piggy-bank" "icon" %}<span>Ahorro</span>
   </a>
-  <a href="{{ add_href|default:'#add-card' }}" class="add" aria-label="Agregar gasto"
-     onclick="window.dispatchEvent(new CustomEvent('open-add'))">
-    {% icon "plus" "icon" %}
-  </a>
+  {% if center_is_add %}
+    {# En el Mes: el boton central agrega un gasto. #}
+    <a href="#add-card" class="add" aria-label="Agregar gasto"
+       onclick="event.preventDefault(); window.dispatchEvent(new CustomEvent('open-add'))">
+      {% icon "plus" "icon" %}
+    </a>
+  {% else %}
+    {# En el resto: el boton central lleva al Mes (home). #}
+    <a href="{% url 'dashboard:home' %}" class="add" aria-label="Ir al mes">
+      {% icon "home" "icon" %}
+    </a>
+  {% endif %}
   <a href="{% url 'imports:import' %}" class="{% if nav_active == 'import' %}active{% endif %}">
     {% icon "download" "icon" %}<span>Importar</span>
   </a>

@@ -4,59 +4,37 @@
   <div class="k">Ingresos de {{ period_label }}</div>
   <div class="v pos"><span class="cur">$</span><span class="tnum">{{ income_planned|money }}</span></div>
   <div class="legend">
-    <span>planeado <b class="tnum">$ {{ income_planned|money:0 }}</b></span>
-    <span>cobrado <b class="tnum">$ {{ income_received|money:0 }}</b></span>
+    <span>Esto es lo que mueve el resto sueldo del mes</span>
   </div>
 </div>
 
 <div class="card">
   <div class="section-title"><span>Fuentes de ingreso</span></div>
   <p class="muted" style="font-size:.78rem;margin-top:-.3rem">
-    Tu sueldo y cualquier ingreso extra. Lo <b>esperado</b> es lo que mueve el resto sueldo;
-    lo <b>cobrado</b> es para tu seguimiento.
+    Tu sueldo y cualquier ingreso extra (freelance, alquiler, aguinaldo…).
   </p>
 
   {% if sources %}
     <ul class="rev-list">
       {% for s in sources %}
-        <li id="income-{{ s.id }}" class="card rev-item {% if s.received_amount is None %}pending{% else %}confirmed{% endif %}">
+        <li id="income-{{ s.id }}" class="card rev-item">
           <div class="rev-top">
             <div class="rev-main">
               <div class="rev-name">{{ s.name }}</div>
-              <div class="rev-meta">
-                {% if s.received_amount is None %}
-                  <span class="badge">sin cobrar</span>
-                {% else %}
-                  <span class="badge ok">{% icon "check" "icon" %} cobrado</span>
-                {% endif %}
-              </div>
             </div>
             <button class="icon-btn danger" type="button"
                     hx-post="{% url 'dashboard:income_delete' s.id %}"
                     hx-target="#income-body" hx-swap="innerHTML"
                     hx-confirm="¿Borrar {{ s.name }}?" aria-label="Borrar">{% icon "trash-2" "icon" %}</button>
           </div>
-          <div class="two-col">
-            <div class="money-field">
-              <label>Esperado</label>
-              <div class="money-input">
-                <span class="cur">$</span>
-                <input type="number" name="expected_amount" inputmode="decimal" step="0.01" min="0"
-                       value="{{ s.expected_amount|stringformat:'.2f' }}"
-                       hx-post="{% url 'dashboard:income_update' s.id %}" hx-target="#income-body"
-                       hx-swap="innerHTML" hx-trigger="change" aria-label="Monto esperado">
-              </div>
-            </div>
-            <div class="money-field">
-              <label>Cobrado</label>
-              <div class="money-input">
-                <span class="cur">$</span>
-                <input type="number" name="received_amount" inputmode="decimal" step="0.01" min="0"
-                       value="{% if s.received_amount is not None %}{{ s.received_amount|stringformat:'.2f' }}{% endif %}"
-                       placeholder="sin cobrar"
-                       hx-post="{% url 'dashboard:income_update' s.id %}" hx-target="#income-body"
-                       hx-swap="innerHTML" hx-trigger="change" aria-label="Monto cobrado">
-              </div>
+          <div class="money-field">
+            <label>Monto esperado</label>
+            <div class="money-input">
+              <span class="cur">$</span>
+              <input type="number" name="expected_amount" inputmode="decimal" step="0.01" min="0"
+                     value="{{ s.expected_amount|stringformat:'.2f' }}"
+                     hx-post="{% url 'dashboard:income_update' s.id %}" hx-target="#income-body"
+                     hx-swap="innerHTML" hx-trigger="change" aria-label="Monto esperado">
             </div>
           </div>
         </li>

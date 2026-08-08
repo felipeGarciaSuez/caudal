@@ -48,16 +48,16 @@ def test_add_category_rejects_empty_name(client_logged):
 
 def test_add_category_rejects_duplicate_name_ci(client_logged, user):
     Category.objects.create(owner=user, name="Nafta")
-    resp = client_logged.post(
-        reverse("transactions:add_category"), _payload(name="nafta")
-    )
+    resp = client_logged.post(reverse("transactions:add_category"), _payload(name="nafta"))
     assert resp.status_code == 400
     assert Category.objects.filter(owner=user).count() == 1
+
 
 def test_unknown_icon_is_dropped(client_logged, user):
     client_logged.post(reverse("transactions:add_category"), _payload(icon="not-an-icon"))
     c = Category.objects.get(owner=user, name="Delivery")
     assert c.icon == ""
+
 
 def test_update_category_changes_fields(client_logged, user):
     c = Category.objects.create(owner=user, name="Cafe")
@@ -69,6 +69,7 @@ def test_update_category_changes_fields(client_logged, user):
     c.refresh_from_db()
     assert c.name == "Café"
     assert c.icon == "coffee"
+
 
 def test_delete_category_sets_transactions_null(client_logged, user, wallet):
     c = Category.objects.create(owner=user, name="Super")

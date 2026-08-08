@@ -1,8 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
-from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from apps.transactions.models import Category, Transaction
@@ -11,12 +9,6 @@ from apps.wallets.models import Wallet
 from .forms import SOURCE_WALLET_KINDS, ImportUploadForm
 from .models import CategoryRule, ImportBatch
 from .services import ParseError, run_import
-
-
-def _add_href() -> str:
-    """Link for the '+' FAB: current month's manual-add form."""
-    period = timezone.localdate().strftime("%Y-%m")
-    return reverse("dashboard:month", args=[period]) + "#add-card"
 
 
 def _statement_review_period(wallet) -> str | None:
@@ -82,7 +74,6 @@ def import_view(request):
             "wallets_json": wallets,
             "source_kinds_json": source_kinds,
             "nav_active": "import",
-            "add_href": _add_href(),
         },
     )
 
@@ -109,8 +100,6 @@ def _rules_context(user, **extra) -> dict:
         "categories": Category.objects.filter(owner=user).order_by("name"),
         "active_count": sum(1 for r in rules if r.is_active),
         "nav_active": "settings",
-        "add_href": reverse("dashboard:month", args=[timezone.localdate().strftime("%Y-%m")])
-        + "#add-card",
     }
     ctx.update(extra)
     return ctx

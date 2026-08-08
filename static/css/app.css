@@ -106,6 +106,7 @@ select, .input {
   border-radius: 12px; padding: .6rem .75rem; font-size: .92rem; -webkit-appearance: none; appearance: none;
 }
 select:focus, .input:focus { outline: none; border-color: var(--brand); }
+.input.lg { font-size: 1.15rem; padding: .7rem .85rem; font-variant-numeric: tabular-nums; }
 
 .chips { display: flex; flex-wrap: wrap; gap: .45rem; }
 .chip {
@@ -115,6 +116,7 @@ select:focus, .input:focus { outline: none; border-color: var(--brand); }
   transition: transform .07s, border-color .15s, background .15s;
 }
 .chip:active { transform: scale(.95); }
+.chip.active { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 18%, var(--bg-1)); }
 .chip:disabled { opacity: .45; cursor: not-allowed; }
 .chip .em { font-size: 1rem; }
 
@@ -157,6 +159,7 @@ select:focus, .input:focus { outline: none; border-color: var(--brand); }
 .tx-meta { color: var(--faint); font-size: .74rem; margin-top: 2px; display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
 .tx-amount { font-variant-numeric: tabular-nums; font-weight: 700; }
 .paid-toggle { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 11px; border: 1.5px solid var(--line);
+  display: inline-flex; align-items: center; justify-content: center;
   background: var(--bg-1); color: var(--faint); cursor: pointer; font-size: 1rem; transition: transform .08s; }
 .paid-toggle:active { transform: scale(.9); }
 .paid-toggle.paid { background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #04231b; border-color: transparent; }
@@ -207,6 +210,9 @@ a.chev { text-decoration: none; display: inline-grid; place-items: center; }
 .empty .big { font-size: 2rem; display: block; margin-bottom: .4rem; }
 
 .inline-income { display: inline-flex; align-items: center; gap: .3rem; }
+.inline-income.link-more { color: var(--brand); font-weight: 600; text-decoration: none; }
+.more-chev { display: inline-flex; align-items: center; }
+.more-chev .icon { width: 15px; height: 15px; opacity: .85; }
 .inline-income input { width: 7.5rem; background: rgba(255,255,255,.06); border: 1px solid var(--line);
   color: var(--text); border-radius: 9px; padding: .28rem .5rem; font-size: .82rem; font-variant-numeric: tabular-nums; }
 
@@ -218,15 +224,23 @@ a.chev { text-decoration: none; display: inline-grid; place-items: center; }
   background: color-mix(in srgb, var(--bg-0) 82%, transparent);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   border-top: 1px solid var(--line);
+  /* Force its own GPU layer: stops the iOS flicker where a fixed element with
+     backdrop-filter briefly vanishes while a new page paints. */
+  transform: translateZ(0); -webkit-transform: translateZ(0); will-change: transform;
 }
 .tabbar a { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--faint);
-  font-size: .66rem; font-weight: 700; padding: .3rem .55rem; border-radius: 12px; }
-.tabbar a .icon { width: 24px; height: 24px; }
+  font-size: .66rem; font-weight: 700; padding: .3rem .55rem; border-radius: 12px;
+  transition: color .2s ease, transform .12s ease; }
+.tabbar a .icon { width: 24px; height: 24px; transition: transform .12s ease; }
 .tabbar a.active { color: var(--brand); }
+.tabbar a:active { transform: scale(.9); }
+/* Central elevated button: "+" (add gasto) on the month, home icon elsewhere. */
 .tabbar a.add { margin-top: -1.7rem; width: 56px; height: 56px; border-radius: 50%;
   align-items: center; justify-content: center; padding: 0;
   background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #04231b;
-  box-shadow: 0 10px 22px -6px rgba(52,226,176,.5); }
+  box-shadow: 0 10px 22px -6px rgba(52,226,176,.5);
+  transition: transform .14s ease, box-shadow .2s ease; }
+.tabbar a.add:active { transform: scale(.93); }
 .tabbar a.add .icon { width: 28px; height: 28px; }
 
 /* ---------- Inline SVG icons ---------- */

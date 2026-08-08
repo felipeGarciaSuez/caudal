@@ -18,9 +18,10 @@
   </div>
   <div class="legend">
     {% if m.income_source_count %}
-      <a class="inline-income" href="{% url 'dashboard:month_income' period %}">
+      <a class="inline-income link-more" href="{% url 'dashboard:month_income' period %}"
+         aria-label="Ver y editar ingresos">
         Ingresos $ {{ m.income|money:0 }}
-        {% if m.income_received %}<small class="muted">· cobrado $ {{ m.income_received|money:0 }}</small>{% endif %}
+        <span class="more-chev">{% icon "chevron-right" "icon" %}</span>
       </a>
     {% else %}
       <span class="inline-income">Sueldo $
@@ -28,7 +29,7 @@
                value="{{ budget.expected_income|stringformat:'.2f' }}"
                hx-post="{% url 'dashboard:set_income' period %}" hx-target="#month-body"
                hx-swap="innerHTML" hx-trigger="change" aria-label="Sueldo esperado">
-        <a href="{% url 'dashboard:month_income' period %}" aria-label="Detallar ingresos (sumar fuentes)">{% icon "plus" "icon" %}</a>
+        <a class="link-more" href="{% url 'dashboard:month_income' period %}" aria-label="Detallar ingresos (sumar fuentes)">{% icon "plus" "icon" %}</a>
       </span>
     {% endif %}
     <span>− gastos <b class="tnum">$ {{ m.total_spent|money:0 }}</b></span>
@@ -246,15 +247,15 @@
 
 {# ---------- CARGA MANUAL (único form de alta; el "+" del tabbar lo abre) ---------- #}
 <div class="card" id="add-card"
-     x-data="{ open: window.location.hash === '#add-card', amount: '', desc: '' }"
-     @open-add.window="open = true; $el.scrollIntoView({ behavior: 'smooth' })">
+     x-data="{ open: window.location.hash === '#add-card', amount: '', desc: '', cat: null }"
+     @open-add.window="open = true; $nextTick(() => $el.scrollIntoView({ behavior: 'smooth', block: 'end' }))">
   <button type="button" class="collapse-head" @click="open = !open">
     <span>{% icon "plus" "icon" %} Agregar un gasto</span>
     <span class="chev" :class="{ 'rot': open }">{% icon "chevron-right" "icon" %}</span>
   </button>
   <div x-show="open" x-cloak style="margin-top:.9rem">
     <form hx-post="{% url 'dashboard:add_transaction' %}" hx-target="#month-body" hx-swap="innerHTML"
-          @htmx:after-request="if ($event.detail.successful) { amount = ''; desc = '' }">
+          @htmx:after-request="if ($event.detail.successful) { amount = ''; desc = ''; cat = null }">
       <input type="hidden" name="period" value="{{ period }}">
       <input type="hidden" name="kind" value="expense">
       <input type="hidden" name="date" value="{{ default_date|date:'Y-m-d' }}">
@@ -277,16 +278,22 @@
       <label class="paid-check" style="margin-top:.3rem">
         <input type="checkbox" name="is_big"> Es un gasto grande
       </label>
-      <div class="chips" style="margin-top:.7rem">
+      <label class="hint muted" style="display:block;margin-top:.7rem;margin-bottom:.3rem">Categoría</label>
+      <div class="chips">
         {% for c in quick_categories %}
-          <button class="chip" type="submit" name="category" value="{{ c.id }}" :disabled="!amount">
+          <button class="chip" type="button" @click="cat = '{{ c.id }}'" :class="{ active: cat === '{{ c.id }}' }">
             {% icon c.icon|default:"tag" "icon" %}{{ c.name }}
           </button>
         {% endfor %}
-        <button class="chip k-none" type="submit" name="category" value="" :disabled="!amount">
+        <button class="chip k-none" type="button" @click="cat = ''" :class="{ active: cat === '' }">
           {% icon "tag" "icon" %}Sin categoría
         </button>
       </div>
+      <input type="hidden" name="category" :value="cat === null ? '' : cat">
+      <button class="btn btn-primary" type="submit" style="margin-top:.9rem"
+              :disabled="!amount || cat === null">
+        {% icon "check" "icon" %} Confirmar gasto
+      </button>
       <a class="hint muted" href="{% url 'transactions:categories' %}" style="display:inline-block;margin-top:.6rem">{% icon "tag" "icon" %} Gestionar categorías</a>
     </form>
   </div>
